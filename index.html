@@ -382,7 +382,9 @@ async function startSupa(session){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resync()});
   window.addEventListener('online',()=>{flush();resync()});
   window.addEventListener('offline',()=>setSync('off'));
-  setInterval(()=>{if(document.visibilityState==='visible')resync()},60000);
+  // com o tempo real ativo as mudanças já chegam sozinhas; a recarga completa fica só como reserva
+  setInterval(()=>{if(document.visibilityState==='visible'&&!rtOk)resync()},60000);
+  setInterval(()=>{if(document.visibilityState==='visible')resync()},15*60000);
 }
 /* --- sincronização --- */
 const QKEY='3struza-fila';let QUEUE=[];try{QUEUE=JSON.parse(localStorage.getItem(QKEY)||'[]')}catch(e){QUEUE=[]}
@@ -396,12 +398,27 @@ async function flush(){
     const op=QUEUE[0];let error=null;
     try{const r=op.t==='put'?await SB.from('docs').upsert({col:op.col,id:op.id,data:op.data,updated_at:new Date().toISOString()}):await SB.from('docs').delete().eq('col',op.col).eq('id',op.id);error=r.error}catch(e){error=e}
     if(error){
-      if(isNetErr(error)){setSync('off');clearTimeout(retryT);retryT=setTimeout(flush,8000);flushing=false;return}
-      console.error(error);toast('Não foi possível salvar: '+(error.message||error));QUEUE.shift();saveQ();resync();continue}
+      // nunca descarta a alteração: fica na fila até o banco aceitar
+      flushing=false;clearTimeout(retryT);
+      if(isNetErr(error)){setSync('off');retryT=setTimeout(flush,8000);return}
+      console.error(error);
+      if(isAuthErr(error)){setSync('auth');reauth();return}
+      saveErr=error.message||String(error);setSync('err');retryT=setTimeout(flush,30000);return}
     QUEUE.shift();saveQ();
   }
-  flushing=false;lastSync=new Date();setSync('ok');
+  flushing=false;saveErr='';lastSync=new Date();setSync('ok');
+  if(REAUTH){REAUTH=false;$('#login').hidden=true}
 }
+let saveErr='';
+const isAuthErr=e=>/jwt|token|auth|401|403|42501|PGRST30|permission denied|row-level security|not authorized/i.test(String(e?.message||'')+' '+String(e?.code||'')+' '+String(e?.status||''));
+// sessão vencida: pede login de novo sem perder a fila
+async function reauth(){
+  try{const{data}=await SB.auth.refreshSession();if(data?.session){flush();return}}catch(e){}
+  REAUTH=true;const l=$('#login');l.hidden=false;
+  $('#lgErr').textContent=`Sua sessão expirou. Entre de novo para salvar ${QUEUE.length} alteração(ões) pendente(s).`;$('#lgErr').hidden=false;
+  setTimeout(()=>$('#lgEmail').focus(),50);
+}
+let REAUTH=false;
 function applyQueueLocal(){for(const op of QUEUE){if(!S[op.col])continue;if(op.t==='put')upsertLocal(op.col,{id:op.id,...op.data});else S[op.col]=S[op.col].filter(x=>x.id!==op.id)}}
 async function loadAll(){
   const all=[];
@@ -427,15 +444,20 @@ let syncState='ok';
 function setSync(st){if(st)syncState=st;const el=$('#sync');if(!el)return;
   const q=QUEUE.length;let cls,txt;
   if(syncState==='off'){cls='off';txt=q?`Sem conexão · ${q} alteração(ões) aguardando`:'Sem conexão · tentando de novo'}
+  else if(syncState==='auth'&&q){cls='off';txt=`Sessão expirada · ${q} alteração(ões) aguardando login`}
+  else if(syncState==='err'&&q){cls='off';txt=`Erro ao salvar · ${q} pendente(s) · clique para tentar de novo`}
   else if(syncState==='saving'||q){cls='saving';txt='Salvando…'}
   else{cls='ok';txt='Sincronizado'+(lastSync?' · '+lastSync.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'')}
   el.className='syncpill '+cls;el.querySelector('span').textContent=txt;
-  el.title=rtOk?'Atualização em tempo real ativa':'Tempo real reconectando; os dados são recarregados a cada minuto';
+  el.title=syncState==='err'&&q?'O banco recusou: '+saveErr+'. A alteração continua guardada neste navegador.':rtOk?'Atualização em tempo real ativa':'Tempo real reconectando; os dados são recarregados a cada minuto';
+  el.style.cursor=q?'pointer':'';el.onclick=q?()=>{if(syncState==='auth')reauth();else{clearTimeout(retryT);flush()}}:null;
 }
 document.addEventListener('submit',async e=>{if(e.target.id!=='lgForm')return;e.preventDefault();
   const btn=e.target.querySelector('button');btn.disabled=true;$('#lgErr').hidden=true;
   const{data,error}=await SB.auth.signInWithPassword({email:$('#lgEmail').value.trim(),password:$('#lgPass').value});
-  btn.disabled=false;if(error){showLogin(error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message);return}
+  btn.disabled=false;const msg=error&&(error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message);
+  if(REAUTH){if(error){$('#lgErr').textContent=msg;$('#lgErr').hidden=false;return}REAUTH=false;$('#login').hidden=true;flush();return}
+  if(error){showLogin(msg);return}
   startSupa(data.session)});
 
 async function initStore(){
@@ -480,13 +502,20 @@ function estoque(){
   rows.sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.cor.localeCompare(b.cor)||a.embalagem.localeCompare(b.embalagem)||a.pesoUn-b.pesoUn);
   return rows;
 }
-function disponivel(it,ignoreVendaId){
-  const k=stockKey(it);let kg=0;
-  S.compras.forEach(c=>(c.itens||[]).forEach(x=>{if(stockKey(x)===k)kg+=num(x.kg)}));
-  S.ajustes.forEach(a=>{if(stockKey(a)===k)kg+=(a.sentido==='saida'?-1:1)*num(a.kg)});
-  S.vendas.forEach(v=>{if(v.id===ignoreVendaId)return;(v.itens||[]).forEach(x=>{if(stockKey(x)===k)kg-=num(x.kg)})});
-  return kg;
-}
+// estoque disponível por material + cor (todas as embalagens somadas)
+function dispMat(tipo,cor,ignoreVendaId){let kg=0;const ok=x=>x.tipo===tipo&&x.cor===cor;
+  S.compras.forEach(c=>(c.itens||[]).forEach(x=>{if(ok(x))kg+=num(x.kg)}));
+  S.ajustes.forEach(a=>{if(ok(a))kg+=(a.sentido==='saida'?-1:1)*num(a.kg)});
+  S.vendas.forEach(v=>{if(v.id===ignoreVendaId)return;(v.itens||[]).forEach(x=>{if(ok(x))kg-=num(x.kg)})});
+  return r2(kg)}
+function faltaEstoque(its,ignoreVendaId){const pede=new Map();its.forEach(i=>{const k=i.tipo+'|'+i.cor;pede.set(k,(pede.get(k)||0)+num(i.kg))});
+  return[...pede].map(([k,kg])=>{const[tipo,cor]=k.split('|');return{tipo,cor,pede:r2(kg),tem:dispMat(tipo,cor,ignoreVendaId)}}).filter(x=>x.pede>x.tem+0.005)}
+// próximo número de compra/venda: consulta o banco para não repetir quando duas pessoas lançam juntas
+async function proximoNumero(col){let mx=Math.max(0,...S[col].map(x=>num(x.numero)));
+  if(MODE==='supa'&&navigator.onLine){try{const r=await SB.from('docs').select('n:data->numero').eq('col',col).order('data->numero',{ascending:false,nullsFirst:false}).limit(1);
+    if(!r.error&&r.data&&r.data[0])mx=Math.max(mx,num(r.data[0].n))}catch(e){}}
+  for(const op of QUEUE)if(op.col===col&&op.t==='put')mx=Math.max(mx,num(op.data?.numero));
+  return mx+1}
 function linked(refId){
   const tit=S.titulos.filter(t=>t.ref?.id===refId);
   const tids=new Set(tit.map(t=>t.id));
@@ -512,7 +541,7 @@ const VIEWS=[
 ];
 const TITLES={painel:'Visão geral',caixa:'Caixa',pagar:'Contas a pagar',receber:'Contas a receber',compras:'Compras',vendas:'Vendas',estoque:'Estoque',cadastros:'Clientes e fornecedores',historico:'Histórico de alterações',config:'Configurações'};
 
-function go(v){UI.view=v;if(v==='historico'&&!HIST.loaded)loadHist(true);UI.busca='';try{history.replaceState(null,'','#'+v)}catch(e){}closeSide();render();window.scrollTo(0,0)}
+function go(v){UI.view=v;UI.caixaLim=0;if(v==='historico'&&!HIST.loaded)loadHist(true);UI.busca='';try{history.replaceState(null,'','#'+v)}catch(e){}closeSide();render();window.scrollTo(0,0)}
 function closeSide(){$('#side').classList.remove('open');$('#scrim').classList.remove('on')}
 $('#burger').onclick=()=>{$('#side').classList.add('open');$('#scrim').classList.add('on')};
 $('#scrim').onclick=closeSide;
@@ -639,6 +668,8 @@ function vCaixa(){
   if(UI.busca){const q=UI.busca.toLowerCase();movs=movs.filter(m=>(m.descricao+' '+(m.categoria||'')+' '+parcNome(m.parceiroId)).toLowerCase().includes(q))}
   const ent=movs.reduce((a,m)=>a+Math.max(0,efeito(m)),0),sai=movs.reduce((a,m)=>a+Math.max(0,-efeito(m)),0);
   movs=movs.slice().reverse();
+  // tabelas muito longas travam a tela: mostra os mais recentes primeiro e carrega o resto sob demanda
+  const lim=UI.caixaLim||200,ocultos=Math.max(0,movs.length-lim);const movsTela=movs.slice(0,lim);
   const grupos=['banco','gaveta','credito'];
   const origem=m=>{if(!m.ref)return'';const src=m.ref.col==='titulos'?byId('titulos',m.ref.id):byId(m.ref.col,m.ref.id);
     if(m.ref.col==='compras')return `<span class="pill p-grey">Compra #${src?.numero??''}</span>`;
@@ -659,11 +690,12 @@ function vCaixa(){
       <input class="search" id="busca" placeholder="Buscar…" value="${esc(UI.busca)}">
       <button class="btn sm" data-act="csv">Baixar CSV</button></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th class="r">Valor</th><th class="r">Saldo após</th><th></th></tr></thead><tbody>
-    ${movs.map(m=>{const e=efeito(m);return `<tr><td class="num">${fd(m.data)}</td><td>${esc(m.descricao)} ${origem(m)}${m.parceiroId?`<div class="muted" style="font-size:12.5px">${esc(parcNome(m.parceiroId))}</div>`:''}</td><td class="muted">${esc(m.tipo==='transferencia'?'Transferência':m.categoria||'')}</td>
+    ${movsTela.map(m=>{const e=efeito(m);return `<tr><td class="num">${fd(m.data)}</td><td>${esc(m.descricao)} ${origem(m)}${m.parceiroId?`<div class="muted" style="font-size:12.5px">${esc(parcNome(m.parceiroId))}</div>`:''}</td><td class="muted">${esc(m.tipo==='transferencia'?'Transferência':m.categoria||'')}</td>
       <td>${m.tipo==='transferencia'?`${esc(contaNome(m.contaId))} → ${esc(contaNome(m.contaDestinoId))}`:esc(contaNome(m.contaId))}</td>
       <td class="r ${e>0?'pos':e<0?'neg':'muted'}">${e>0?'+ ':e<0?'− ':''}${e?brl(Math.abs(e)):brl(m.valor)}</td>
       <td class="r ${sal.get(m.id)<0?'neg':''}">${brl(sal.get(m.id))}</td>
       <td class="acts">${m.ref?'':`<button class="btn sm" data-act="editMov" data-id="${m.id}">Editar</button> `}<button class="btn sm danger" data-act="delMov" data-id="${m.id}">Excluir</button> ${histBtn('movimentos',m.id)}</td></tr>`}).join('')||`<tr><td colspan="7"><div class="empty"><b>Sem movimentações em ${label}</b>Lance uma entrada, saída ou transferência, ou mude o período.</div></td></tr>`}
+    ${ocultos?`<tr><td colspan="7" style="text-align:center"><button class="btn sm" data-act="caixaMais">Mostrar mais ${Math.min(ocultos,500)} de ${ocultos} lançamentos mais antigos</button></td></tr>`:''}
     </tbody>${movs.length?`<tfoot>
       <tr><td colspan="4">Saldo antes de ${UI.per==='tudo'?'tudo':fd(ini)}</td><td></td><td class="r">${brl(anterior)}</td><td></td></tr>
       <tr><td colspan="4">Entradas <span class="pos">${brl(ent)}</span> · Saídas <span class="neg">${brl(sai)}</span>${fc?'':' <span class="muted">(transferências entre caixas não entram na soma)</span>'}</td><td class="r ${ent-sai<0?'neg':'pos'}">${brl(ent-sai)}</td><td class="r">${brl(anterior+ent-sai)}</td><td></td></tr></tfoot>`:''}</table></div>
@@ -955,7 +987,7 @@ function ask(title,msg,buttons){return new Promise(res=>{
 })}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
 const fv=(f,n)=>f.elements[n]?.value?.trim()??'';
-const opt=(list,sel,ph)=>(ph?`<option value="">${ph}</option>`:'')+list.map(v=>`<option ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
+const opt=(list,sel,ph)=>(ph?`<option value="">${ph}</option>`:'')+(sel&&!list.includes(sel)?[sel,...list]:list).map(v=>`<option ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
 const contaOpts=(sel,tipoPref)=>S.contas.filter(c=>c.ativo!==false||c.id===sel).map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.nome)} · ${TIPOCONTA[c.tipo]}</option>`).join('');
 function defaultConta(forma){const pref=forma==='dinheiro'?'gaveta':'banco';return(S.contas.find(c=>c.tipo===pref&&c.ativo!==false)||S.contas[0])?.id||''}
 
@@ -969,6 +1001,7 @@ function formConta(id){
     <label class="fl">Saldo inicial (R$)<input name="saldoInicial" id="cSaldo" inputmode="decimal" value="${fnum(c.saldoInicial)}"></label></div>
     ${id?`<div class="chk"><label><input type="checkbox" name="ativo" ${c.ativo!==false?'checked':''}> Conta ativa</label></div>`:''}`,
   {onSubmit:async f=>{const nome=fv(f,'nome');if(!nome)throw'Informe o nome da conta.';
+    if(id&&c.ativo!==false&&!f.elements.ativo.checked){const sd=saldoConta(id);if(Math.abs(sd)>0.005)throw`Esta conta ainda tem saldo de ${brl(sd)}. Transfira o saldo para outra conta antes de inativar.`}
     await put('contas',{...c,id:id||nid(),nome,tipo:f.elements.tipo.value,detalhe:fv(f,'detalhe'),saldoInicial:num(fv(f,'saldoInicial')),ativo:id?f.elements.ativo.checked:true});toast('Conta salva')}});
 }
 
@@ -1073,10 +1106,21 @@ function formBaixa(id){
     <div class="box"><div><b>${esc(t.descricao)}</b>${t.totalParcelas>1?` <span class="muted">${t.parcela}/${t.totalParcelas}</span>`:''}</div><div class="muted">Vencimento ${fd(t.vencimento)} · ${brl(t.valor)}${t.parceiroId?' · '+esc(parcNome(t.parceiroId)):''}</div></div>
     <div class="row"><label class="fl">Data do ${pagar?'pagamento':'recebimento'}<input type="date" name="data" id="bData" value="${today()}"></label><label class="fl">Valor ${pagar?'pago':'recebido'} (R$)<input name="valor" id="bValor" inputmode="decimal" value="${fnum(t.valor)}"></label></div>
     <label class="fl">${pagar?'Sai de qual conta':'Entra em qual conta'}<select name="contaId" id="bConta">${contaOpts(defaultConta('pix'))}</select></label>
-    <p class="hint" style="margin:0">Juros, multa ou desconto: ajuste o valor. O lançamento vai para o caixa automaticamente.</p>`,
-  {submit:pagar?'Confirmar pagamento':'Confirmar recebimento',onSubmit:async f=>{const v=num(fv(f,'valor'));if(v<=0)throw'Informe o valor.';
-    const mid=nid();const data=fv(f,'data')||today();
+    <div class="box" id="bParcBox" hidden><div class="opts" style="flex-direction:column;align-items:stretch">
+      <label><input type="radio" name="parcial" value="sim" checked><span id="bParcTxt">Pagamento parcial</span></label>
+      <label><input type="radio" name="parcial" value="nao">Quitar com desconto (o restante não será cobrado)</label></div></div>
+    <p class="hint" style="margin:0">Juros ou multa: aumente o valor. Valor menor: escolha se é parcial ou desconto. O lançamento vai para o caixa automaticamente.</p>`,
+  {submit:pagar?'Confirmar pagamento':'Confirmar recebimento',
+   onMount:f=>{const upd=()=>{const v=num(fv(f,'valor'));const falta=r2(num(t.valor)-v);const box=$('#bParcBox');box.hidden=!(v>0&&falta>0.005);
+     $('#bParcTxt').textContent=`${pagar?'Pagamento':'Recebimento'} parcial: os ${brl(falta)} restantes continuam em aberto com o mesmo vencimento`};f.addEventListener('input',upd);upd()},
+   onSubmit:async f=>{const v=num(fv(f,'valor'));if(v<=0)throw'Informe o valor.';
+    const mid=nid();const data=fv(f,'data')||today();const falta=r2(num(t.valor)-v);const parcial=falta>0.005&&f.elements.parcial.value==='sim';
     await put('movimentos',{id:mid,tipo:pagar?'saida':'entrada',data,valor:r2(v),contaId:fv(f,'contaId'),descricao:t.descricao+(t.totalParcelas>1?` (${t.parcela}/${t.totalParcelas})`:''),categoria:t.categoria||'',parceiroId:t.parceiroId||'',ref:{col:'titulos',id:t.id},criadoEm:Date.now()});
+    if(parcial){const rid=nid();
+      await put('titulos',{...t,valor:r2(v),valorOriginal:num(t.valorOriginal)||num(t.valor),restoId:rid,pago:true,pagoEm:data,valorPago:r2(v),contaId:fv(f,'contaId'),movimentoId:mid});
+      const{pago,pagoEm,valorPago,movimentoId,contaId,restoId,valorOriginal,...base}=t;
+      await put('titulos',{...base,id:rid,valor:falta,restoDe:t.id,pago:false,obs:[t.obs,`Saldo do ${pagar?'pagamento':'recebimento'} parcial de ${fd(data)}`].filter(Boolean).join(' · '),criadoEm:Date.now()});
+      toast(`${pagar?'Pagamento':'Recebimento'} parcial registrado · ${brl(falta)} em aberto`);return}
     await put('titulos',{...t,pago:true,pagoEm:data,valorPago:r2(v),contaId:fv(f,'contaId'),movimentoId:mid});toast(pagar?'Pagamento registrado':'Recebimento registrado')}});
 }
 async function estornar(id){
@@ -1084,7 +1128,12 @@ async function estornar(id){
   const ok=await ask('Estornar lançamento',`Desfazer o ${t.lado==='pagar'?'pagamento':'recebimento'} de <b>${esc(t.descricao)}</b> (${brl(t.valorPago||t.valor)})? O valor volta para a conta e o lançamento fica em aberto.`,[{label:'Estornar',cls:'pri',v:true}]);
   if(!ok)return;
   for(const m of S.movimentos.filter(m=>m.ref?.id===t.id))await del('movimentos',m.id);
-  const {pago,pagoEm,valorPago,movimentoId,contaId,...rest}=t;await put('titulos',{...rest,pago:false});toast('Estornado');
+  const {pago,pagoEm,valorPago,movimentoId,contaId,restoId,valorOriginal,...rest}=t;
+  // estorno de pagamento parcial: junta de volta com o saldo que ficou em aberto
+  const resto=restoId&&byId('titulos',restoId);
+  if(resto&&!resto.pago){await del('titulos',resto.id);await put('titulos',{...rest,valor:r2(num(t.valor)+num(resto.valor)),pago:false})}
+  else await put('titulos',{...rest,...(resto?{restoId,valorOriginal}:{}),pago:false});
+  toast('Estornado');
 }
 async function delTitulo(id){
   const t=byId('titulos',id);const futuros=S.titulos.filter(o=>o.grupo===t.grupo&&o.id!==t.id&&!o.pago&&o.vencimento>=t.vencimento);
@@ -1105,7 +1154,7 @@ function formOp(col,id){
   let itens=(o.itens||[]).map(i=>({...i}));
   const hasPaid=id&&linked(id).tit.some(t=>t.pago);
   const form=modal((id?'Editar ':'Nova ')+(isC?'compra':'venda')+(id?' #'+o.numero:''),`
-    ${hasPaid?'<div class="banner">Esta operação tem parcelas já baixadas. Ao salvar, as parcelas e os lançamentos de caixa serão refeitos e voltarão para “em aberto”.</div>':''}
+    ${hasPaid?`<div class="banner">Esta operação tem parcelas já ${isC?'pagas':'recebidas'}. Elas são mantidas ao salvar; se mudar o total ou o número de parcelas, só as parcelas em aberto são recalculadas.</div>`:''}
     <div class="row"><label class="fl">Data<input type="date" name="data" id="oData" value="${o.data}"></label>
       <label class="fl">${isC?'Fornecedor':'Cliente'}<select name="parceiroId" id="oParc"><option value="">Selecione…</option>${parcs.map(p=>`<option value="${p.id}" ${p.id===o.parceiroId?'selected':''}>${esc(p.nome)}${(isC?p.fornecedor:p.cliente)?'':(isC?' (cliente)':' (fornecedor)')}</option>`).join('')}<option value="__novo">+ Cadastrar novo…</option></select></label></div>
     <div class="box" id="novoParc" hidden><b style="font-size:14px">Novo cadastro</b>${parcFields({},'np_')}<span class="hint">Você completa telefone, endereço e outros dados depois em Clientes e fornecedores.</span></div>
@@ -1119,12 +1168,12 @@ function formOp(col,id){
     <label class="fl">Observações<textarea name="obs" id="oObs">${esc(o.obs||'')}</textarea></label>`,
   {wide:true,onMount:f=>{
     const tb=$('#itRows');
-    const drawRows=()=>{tb.innerHTML=itens.map((it,i)=>{const av=!isC?disponivel(it,id):null;return `<tr data-i="${i}">
+    const drawRows=()=>{tb.innerHTML=itens.map((it,i)=>{const av=!isC?dispMat(it.tipo,it.cor,id):null;return `<tr data-i="${i}">
       <td><select data-k="tipo">${opt(c.tipos,it.tipo)}</select></td><td><select data-k="cor">${opt(c.cores,it.cor)}</select></td>
       <td><select data-k="embalagem">${Object.entries(EMB).map(([k,l])=>`<option value="${k}" ${it.embalagem===k?'selected':''}>${l}</option>`).join('')}</select></td>
       <td><input data-k="qtd" inputmode="decimal" value="${it.embalagem==='granel'?'':fnum(it.qtd)}" ${it.embalagem==='granel'?'disabled':''}></td>
       <td><input data-k="pesoUn" inputmode="decimal" value="${it.embalagem==='granel'?'':fnum(it.pesoUn)}" ${it.embalagem==='granel'?'disabled':''}></td>
-      <td><input data-k="kg" inputmode="decimal" value="${fnum(it.kg)}">${av!==null?`<div class="avail ${av<num(it.kg)?'low':''}">Em estoque: ${fkg(av)}</div>`:''}</td>
+      <td><input data-k="kg" inputmode="decimal" value="${fnum(it.kg)}">${av!==null?`<div class="avail ${av<num(it.kg)?'low':''}">Em estoque: ${fkg(av)}<span class="muted"> (${esc(it.tipo)} ${esc(it.cor)}, todas as embalagens)</span></div>`:''}</td>
       <td><input data-k="precoKg" inputmode="decimal" value="${it.precoKg===''?'':fnum(it.precoKg,4)}"></td>
       <td class="r" style="padding-top:12px;font-weight:600" data-sub>${brl(num(it.kg)*num(it.precoKg))}</td>
       <td><button type="button" class="btn sm danger" data-rm="${i}" ${itens.length<2?'disabled':''} aria-label="Remover item">×</button></td></tr>`}).join('');totals()};
@@ -1135,7 +1184,7 @@ function formOp(col,id){
       $('#credPrev').textContent=t?`${n}x de cerca de ${brl(t/n)} · ${isC?'vai para Contas a pagar':'vai para Contas a receber'} de ${fd(v)} até ${fd(addMonths(v,n-1))}`:''};
     tb.addEventListener('input',e=>{const tr=e.target.closest('tr');if(!tr)return;const it=itens[+tr.dataset.i];const k=e.target.dataset.k;
       if(k==='qtd'||k==='pesoUn'||k==='kg'||k==='precoKg'){it[k]=e.target.value;if(k==='qtd'||k==='pesoUn'){it.kg=r2(num(it.qtd)*num(it.pesoUn));tr.querySelector('[data-k=kg]').value=fnum(it.kg)}
-        if(!isC&&(k!=='precoKg')){const av=tr.querySelector('.avail');if(av)av.classList.toggle('low',disponivel(it,id)<num(it.kg))}totals()}});
+        if(!isC&&(k!=='precoKg')){const av=tr.querySelector('.avail');if(av)av.classList.toggle('low',dispMat(it.tipo,it.cor,id)<num(it.kg))}totals()}});
     tb.addEventListener('change',e=>{const tr=e.target.closest('tr');if(!tr)return;const it=itens[+tr.dataset.i];const k=e.target.dataset.k;
       if(k==='tipo'||k==='cor'||k==='embalagem'){it[k]=e.target.value;if(k==='embalagem'){if(it.embalagem==='granel'){it.qtd=0;it.pesoUn=0}else{it.pesoUn=it.embalagem==='saco'?c.pesoSaco:c.pesoBag;it.qtd=it.qtd||1;it.kg=r2(num(it.qtd)*num(it.pesoUn))}}drawRows()}});
     tb.addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(b){itens.splice(+b.dataset.rm,1);drawRows()}});
@@ -1154,18 +1203,54 @@ function formOp(col,id){
     const forma=f.elements.forma.value;
     if((forma==='dinheiro'||forma==='pix')&&!fv(f,'contaId'))throw'Cadastre uma conta de saldo para registrar o pagamento.';
     const total=r2(its.reduce((a,i)=>a+i.kg*i.precoKg,0)),totalKg=r2(its.reduce((a,i)=>a+i.kg,0));
+    let novoParc=null;
     if(parceiroId==='__novo'){const nome=fv(f,'np_nome');if(!nome)throw'Informe o nome do novo cadastro.';parceiroId=nid();
-      await put('parceiros',{id:parceiroId,nome,pessoa:f.elements.np_pessoa.value,documento:fv(f,'np_documento'),fornecedor:isC,cliente:!isC})}
-    else{const p=byId('parceiros',parceiroId);if(p&&!(isC?p.fornecedor:p.cliente))await put('parceiros',{...p,[isC?'fornecedor':'cliente']:true})}
-    const numero=id?o.numero:(Math.max(0,...S[col].map(x=>x.numero||0))+1);
+      novoParc={id:parceiroId,nome,pessoa:f.elements.np_pessoa.value,documento:fv(f,'np_documento'),fornecedor:isC,cliente:!isC}}
+    // venda acima do estoque: avisa e pede um segundo clique para confirmar
+    if(!isC){const falta=faltaEstoque(its,id);const sig=JSON.stringify(its.map(i=>[i.tipo,i.cor,i.kg]));
+      if(falta.length&&f.dataset.semEstoque!==sig){f.dataset.semEstoque=sig;const btn=f.querySelector('[type=submit]');if(btn)btn.textContent='Vender mesmo assim';
+        throw 'Estoque insuficiente: '+falta.map(x=>`${x.tipo} ${x.cor} tem ${fkg(x.tem)} e a venda pede ${fkg(x.pede)}`).join('; ')+'. Confira o material ou clique em “Vender mesmo assim”.'}}
     const opId=id||nid();const data=fv(f,'data')||today();
-    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma,contaId:(forma==='dinheiro'||forma==='pix')?fv(f,'contaId'):'',parcelas:forma==='credito'?Math.max(1,Math.min(60,parseInt(fv(f,'parcelas'))||1)):0,primeiroVenc:forma==='credito'?(fv(f,'primeiroVenc')||today()):'',permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
-    if(id)await removeLinked(id);
+    const parcelas=forma==='credito'?Math.max(1,Math.min(60,parseInt(fv(f,'parcelas'))||1)):0;
+    const primeiroVenc=forma==='credito'?(fv(f,'primeiroVenc')||today()):'';
+    const contaId=(forma==='dinheiro'||forma==='pix')?fv(f,'contaId'):'';
+    const lado=isC?'pagar':'receber',categoria=isC?'Compra de material':'Venda de material';
+    // edição: decide o que fazer com parcelas e lançamentos de caixa já existentes, sem perder baixas
+    let plano='novo';const lk=id?linked(id):{tit:[],mov:[]};const pagos=lk.tit.filter(t=>t.pago);
+    if(id){
+      if(o.forma===forma&&(forma==='dinheiro'||forma==='pix'))plano='caixa';
+      else if(o.forma==='credito'&&forma==='credito'&&pagos.length){
+        const pagoSoma=r2(pagos.reduce((a,t)=>a+num(t.valor),0));
+        if(r2(num(o.total))===total&&num(o.parcelas)===parcelas&&o.primeiroVenc===primeiroVenc)plano='manter';
+        else{if(total<pagoSoma-0.005)throw`Já foram ${isC?'pagos':'recebidos'} ${brl(pagoSoma)}, mais que o novo total de ${brl(total)}. Estorne alguma parcela antes.`;
+          if(total-pagoSoma>0.005&&parcelas<=pagos.length)throw`${pagos.length} parcela(s) já ${isC?'paga(s)':'recebida(s)'}. Use mais de ${pagos.length} parcelas para o valor que falta.`;
+          plano='refazerAbertas'}}
+      else if(pagos.length)throw`Esta ${isC?'compra':'venda'} tem parcelas já ${isC?'pagas':'recebidas'}. Estorne-as em Contas a ${lado} antes de mudar a forma de pagamento.`;
+      else plano='refazer';
+    }
+    if(novoParc)await put('parceiros',novoParc);
+    else{const p=byId('parceiros',parceiroId);if(p&&!(isC?p.fornecedor:p.cliente))await put('parceiros',{...p,[isC?'fornecedor':'cliente']:true})}
+    const numero=id?o.numero:await proximoNumero(col);
+    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma,contaId,parcelas,primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+    if(plano==='refazer')await removeLinked(id);
     await put(col,rec);
-    const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(fv(f,'np_nome')||'');
+    const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(novoParc?.nome||'');
     const desc=`${isC?'Compra':'Venda'} #${numero} · ${pn}`;
-    if(forma==='dinheiro'||forma==='pix'){await put('movimentos',{id:nid(),tipo:isC?'saida':'entrada',data,valor:total,contaId:rec.contaId,descricao:desc+` (${FORMA[forma]})`,categoria:isC?'Compra de material':'Venda de material',parceiroId,ref:{col,id:opId},criadoEm:Date.now()})}
-    if(forma==='credito'){const list=genTitulos({lado:isC?'pagar':'receber',descricao:desc,parceiroId,categoria:isC?'Compra de material':'Venda de material',natureza:isC?'variavel':'',ref:{col,id:opId},criadoEm:Date.now()},'parcelada',rec.parcelas,total,rec.primeiroVenc);for(const x of list)await put('titulos',x)}
+    const movBase={tipo:isC?'saida':'entrada',data,valor:total,contaId,descricao:desc+` (${FORMA[forma]})`,categoria,parceiroId,ref:{col,id:opId}};
+    const novasParcelas=(n,valor,venc,ini,tot,grupo)=>genTitulos({lado,descricao:desc,parceiroId,categoria,natureza:isC?'variavel':'',ref:{col,id:opId},criadoEm:Date.now()},'parcelada',n,valor,venc).map((x,i)=>({...x,parcela:ini+i,totalParcelas:tot,grupo:grupo||x.grupo}));
+    if(plano==='caixa'){const proprios=lk.mov.filter(m=>m.ref?.col===col);const m0=proprios[0];
+      for(const m of proprios.slice(1))await del('movimentos',m.id);
+      await put('movimentos',{...(m0||{id:nid(),criadoEm:Date.now()}),...movBase})}
+    else if(plano==='manter'){for(const t of lk.tit)if(t.descricao!==desc||t.parceiroId!==parceiroId)await put('titulos',{...t,descricao:desc,parceiroId})}
+    else if(plano==='refazerAbertas'){
+      for(const t of lk.tit.filter(t=>!t.pago))await del('titulos',t.id);
+      const ord=pagos.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+      for(const [i,t] of ord.entries())await put('titulos',{...t,parcela:i+1,totalParcelas:parcelas,descricao:desc,parceiroId});
+      const resta=r2(total-ord.reduce((a,t)=>a+num(t.valor),0));
+      if(resta>0.005)for(const x of novasParcelas(parcelas-ord.length,resta,addMonths(primeiroVenc,ord.length),ord.length+1,parcelas,ord[0]?.grupo))await put('titulos',x)}
+    else{
+      if(forma==='dinheiro'||forma==='pix')await put('movimentos',{id:nid(),...movBase,criadoEm:Date.now()});
+      if(forma==='credito')for(const x of novasParcelas(parcelas,total,primeiroVenc,1,parcelas))await put('titulos',x)}
     toast(`${isC?'Compra':'Venda'} #${numero} salva`);
   }});
 }
@@ -1211,6 +1296,7 @@ document.addEventListener('click',async e=>{
     case 'filtroConta':UI.filtroConta=UI.filtroConta===id?'':id;render();break;
     case 'per':UI.per=b.dataset.v;render();break;
     case 'csv':baixarCSV();break;
+    case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;
     case 'filtroT':UI.filtroT=b.dataset.v;render();break;
     case 'cadFiltro':UI.cadFiltro=b.dataset.v;render();break;
     case 'novoTitulo':formTitulo(b.dataset.lado);break;case 'editTitulo':formTitulo(null,id);break;
@@ -1218,8 +1304,8 @@ document.addEventListener('click',async e=>{
     case 'novaCompra':formOp('compras');break;case 'novaVenda':formOp('vendas');break;
     case 'editOp':formOp(b.dataset.col,id);break;case 'delOp':await delOp(b.dataset.col,id);break;
     case 'novoParc':formParc();break;case 'editParc':if(modalClose)modalClose();formParc(id);break;case 'verParc':verParc(id);break;
-    case 'delParc':{const p=byId('parceiros',id);const usado=S.compras.some(x=>x.parceiroId===id)||S.vendas.some(x=>x.parceiroId===id)||S.titulos.some(x=>x.parceiroId===id);
-      if(usado){await ask('Cadastro em uso',`<b>${esc(p.nome)}</b> tem compras, vendas ou contas vinculadas e não pode ser excluído.`,[]);break}
+    case 'delParc':{const p=byId('parceiros',id);const usado=['compras','vendas','titulos','movimentos'].some(c=>S[c].some(x=>x.parceiroId===id));
+      if(usado){await ask('Cadastro em uso',`<b>${esc(p.nome)}</b> tem compras, vendas, contas ou lançamentos de caixa vinculados e não pode ser excluído.`,[]);break}
       if(await ask('Excluir cadastro',`Excluir <b>${esc(p.nome)}</b>?`,[{label:'Excluir',cls:'danger',v:true}])){await del('parceiros',id);toast('Cadastro excluído')}break}
     case 'ajuste':formAjuste();break;
     case 'hist':verHist(b.dataset.col,id);break;
