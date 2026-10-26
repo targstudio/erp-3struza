@@ -828,6 +828,7 @@ function vOps(col){
 function finStatus(x){
   if(x.forma==='permuta')return `<span class="muted" style="font-size:12.5px">${esc(x.permutaDesc||'Sem movimento financeiro')}</span>`;
   if(x.forma==='credito'){const{tit}=linked(x.id);const p=tit.filter(t=>t.pago).length;return `<span class="pill ${p===tit.length&&tit.length?'p-ok':'p-open'}">${p}/${tit.length} ${x.lado==='vendas'||S.vendas.includes(x)?'recebidas':'pagas'}</span>${num(x.entrada)?`<div class="muted" style="font-size:12.5px">Entrada ${brl(x.entrada)}</div>`:''}`}
+  if((x.pagamentos||[]).length>1)return `<span class="muted" style="font-size:12.5px">${x.pagamentos.map(p=>esc(contaNome(p.contaId))+' '+brl(p.valor)).join('<br>')}</span>`;
   return `<span class="muted" style="font-size:12.5px">${esc(contaNome(x.contaId))}</span>`;
 }
 
@@ -903,7 +904,7 @@ async function loadHist(reset){
   if(error){HIST.err=/historico/.test(error.message||'')?'missing':error.message;render();return}
   HIST.err='';HIST.rows.push(...data);HIST.more=data.length===100;render();
 }
-const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag'};
+const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',pagamentos:'Contas do pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag'};
 const SKIP=new Set(['criadoEm','grupo','ref','movimentoId','exemplo','totalParcelas']);
 const MONEY=new Set(['saldoInicial','valor','valorPago','total','custoKg','precoKg']);
 function fmtVal(k,v){
@@ -913,6 +914,7 @@ function fmtVal(k,v){
   if(['kg','totalKg','pesoSaco','pesoBag','pesoUn'].includes(k))return fkg(v);
   if(typeof v==='boolean')return v?'Sim':'Não';
   if(k==='contaId'||k==='contaDestinoId')return contaNome(v);
+  if(k==='pagamentos'&&Array.isArray(v))return v.map(p=>contaNome(p.contaId)+' '+brl(p.valor)).join('; ');
   if(k==='parceiroId')return parcNome(v);
   if(k==='forma')return FORMA[v]||v;
   if(k==='tipo'&&TIPOCONTA[v])return TIPOCONTA[v];
@@ -1208,6 +1210,9 @@ function formOp(col,id){
   const parcs=S.parceiros.slice().sort((a,b)=>(isC?(b.fornecedor-a.fornecedor):(b.cliente-a.cliente))||a.nome.localeCompare(b.nome));
   let itens=(o.itens||[]).map(i=>({...i}));
   const hasPaid=id&&linked(id).tit.some(t=>t.pago);
+  // pagamento à vista (ou entrada) pode sair/entrar de várias contas
+  let pags=(o.pagamentos&&o.pagamentos.length?o.pagamentos:[{contaId:o.contaId||defaultConta(o.forma),valor:''}]).map(x=>({...x,valor:x.valor===''?'':fnum(x.valor)}));
+  if(pags.length===1)pags[0].valor='';
   const form=modal((id?'Editar ':'Nova ')+(isC?'compra':'venda')+(id?' #'+o.numero:''),`
     ${hasPaid?`<div class="banner">Esta operação tem parcelas já ${isC?'pagas':'recebidas'}. Elas são mantidas ao salvar; se mudar o total ou o número de parcelas, só as parcelas em aberto são recalculadas.</div>`:''}
     <div class="row"><label class="fl">Data<input type="date" name="data" id="oData" value="${o.data}"></label>
@@ -1217,7 +1222,8 @@ function formOp(col,id){
       <button type="button" class="btn sm" id="addIt" style="margin-top:6px">+ Adicionar item</button></div>
     <div class="total-line" id="totLine"></div>
     <div><div class="hint" style="margin-bottom:6px;font-weight:600">Forma de pagamento</div><div class="opts">${Object.entries(FORMA).map(([k,l])=>`<label><input type="radio" name="forma" value="${k}" ${o.forma===k?'checked':''}>${l}</label>`).join('')}</div></div>
-    <div class="box" id="fpConta"><label class="fl">${isC?'Sai de qual conta':'Entra em qual conta'}<select name="contaId" id="oConta">${contaOpts(o.contaId||defaultConta(o.forma))}</select></label></div>
+    <div class="box" id="fpConta"><div class="hint" style="font-weight:600">${isC?'Sai de qual conta':'Entra em qual conta'}</div><div id="pgRows" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" id="addPg">+ Dividir em outra conta</button><span class="hint" id="pgInfo"></span></div></div>
     <div class="box" id="fpCred"><div class="row"><label class="fl">Entrada à vista (R$, opcional)<input name="entrada" id="oEntrada" inputmode="decimal" value="${num(o.entrada)?fnum(o.entrada):''}" placeholder="0"></label><label class="fl">Parcelas<input name="parcelas" id="oParcelas" inputmode="numeric" value="${o.parcelas||1}"></label><label class="fl">1º vencimento<input type="date" name="primeiroVenc" id="oVenc" value="${o.primeiroVenc||addDays(today(),30)}"></label></div><div class="hint" id="credPrev"></div></div>
     <div class="box" id="fpPerm"><label class="fl">O que foi dado/recebido em troca<input name="permutaDesc" id="oPerm" value="${esc(o.permutaDesc||'')}" placeholder="Ex.: 2 big bags de PP preto moído"></label><span class="hint">Troca/permuta não movimenta o caixa. Se o material dado em troca saiu do estoque, lance também a venda/ajuste correspondente.</span></div>
     <label class="fl">Observações<textarea name="obs" id="oObs">${esc(o.obs||'')}</textarea></label>`,
@@ -1234,7 +1240,7 @@ function formOp(col,id){
       <td><button type="button" class="btn sm danger" data-rm="${i}" ${itens.length<2?'disabled':''} aria-label="Remover item">×</button></td></tr>`}).join('');totals()};
     const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);
       $('#totLine').innerHTML=`<div><span>Peso total</span>${fkg(kgT)}</div><div><span>Média</span>${kgT?brl(t/kgT)+'/kg':'—'}</div><div><span>Total</span>${brl(t)}</div>`;
-      tb.querySelectorAll('tr').forEach(tr=>{const it=itens[+tr.dataset.i];tr.querySelector('[data-sub]').textContent=brl(num(it.kg)*num(it.precoKg))});credPrev()};
+      tb.querySelectorAll('tr').forEach(tr=>{const it=itens[+tr.dataset.i];tr.querySelector('[data-sub]').textContent=brl(num(it.kg)*num(it.precoKg))});credPrev();if($('#pgInfo'))pgInfo()};
     const credPrev=()=>{const n=Math.max(1,parseInt(fv(f,'parcelas'))||1);const ent=num(fv(f,'entrada'));const t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0)-ent;const v=fv(f,'primeiroVenc')||today();
       $('#credPrev').textContent=t>0?`${ent>0?'Entrada de '+brl(ent)+' no caixa + ':''}${n}x de cerca de ${brl(t/n)} · ${isC?'vai para Contas a pagar':'vai para Contas a receber'} de ${fd(v)} até ${fd(addMonths(v,n-1))}`:''};
     tb.addEventListener('input',e=>{const tr=e.target.closest('tr');if(!tr)return;const it=itens[+tr.dataset.i];const k=e.target.dataset.k;
@@ -1244,11 +1250,22 @@ function formOp(col,id){
       if(k==='tipo'||k==='cor'||k==='embalagem'){it[k]=e.target.value;if(k==='embalagem'){if(it.embalagem==='granel'){it.qtd=0;it.pesoUn=0}else{it.pesoUn=it.embalagem==='saco'?c.pesoSaco:c.pesoBag;it.qtd=it.qtd||1;it.kg=r2(num(it.qtd)*num(it.pesoUn))}}drawRows()}});
     tb.addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(b){itens.splice(+b.dataset.rm,1);drawRows()}});
     $('#addIt').onclick=()=>{const l=itens[itens.length-1]||{};itens.push({tipo:l.tipo||c.tipos[0],cor:c.cores[0],embalagem:l.embalagem||'bigbag',qtd:1,pesoUn:l.pesoUn||c.pesoBag,kg:l.pesoUn||c.pesoBag,precoKg:l.precoKg||''});drawRows()};
+    const alvo=()=>{const v=f.elements.forma.value,t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);return r2(v==='credito'?num(fv(f,'entrada')):t)};
+    const pgInfo=()=>{const a=alvo();const vazios=pags.filter(x=>x.valor==='').length;const soma=pags.reduce((s,x)=>s+num(x.valor),0);
+      $('#pgRows').querySelectorAll('[data-pgauto]').forEach(el=>el.placeholder=vazios===1?fnum(Math.max(0,r2(a-soma))):'0,00');
+      $('#pgInfo').textContent=pags.length<2?'':vazios===1?`O campo vazio fica com ${brl(Math.max(0,a-soma))}`:Math.abs(soma-a)<0.005?'Valores conferem com o total':`Soma ${brl(soma)} de ${brl(a)} · ${soma<a?'faltam':'sobram'} ${brl(Math.abs(a-soma))}`};
+    const drawPg=()=>{$('#pgRows').innerHTML=pags.map((x,i)=>`<div data-pg="${i}" style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:end"><label class="fl">${i?'':'Conta'}<select data-pk="contaId" aria-label="Conta">${contaOpts(x.contaId)}</select></label>
+      <label class="fl">${i?'':'Valor (R$)'}<input data-pk="valor" data-pgauto inputmode="decimal" value="${esc(x.valor)}" aria-label="Valor"></label><button style="margin-bottom:4px" type="button" class="btn sm danger" data-pgrm="${i}" ${pags.length<2?'disabled':''} aria-label="Remover conta">×</button></div>`).join('');pgInfo()};
+    $('#pgRows').addEventListener('input',e=>{const r=e.target.closest('[data-pg]');if(r){pags[+r.dataset.pg][e.target.dataset.pk]=e.target.value;pgInfo()}});
+    $('#pgRows').addEventListener('change',e=>{const r=e.target.closest('[data-pg]');if(r)pags[+r.dataset.pg][e.target.dataset.pk]=e.target.value});
+    $('#pgRows').addEventListener('click',e=>{const b=e.target.closest('[data-pgrm]');if(b){pags.splice(+b.dataset.pgrm,1);drawPg()}});
+    $('#addPg').onclick=()=>{const usadas=new Set(pags.map(x=>x.contaId));      pags.push({contaId:(S.contas.find(c=>c.ativo!==false&&!usadas.has(c.id))||S.contas[0])?.id||'',valor:''});drawPg()};
+    f.__pags=()=>pags;f.__alvo=alvo;
     const fp=()=>{const v=f.elements.forma.value;$('#fpConta').hidden=!(v==='dinheiro'||v==='pix'||(v==='credito'&&num(fv(f,'entrada'))>0));$('#fpCred').hidden=v!=='credito';$('#fpPerm').hidden=v!=='permuta'};
-    f.querySelectorAll('[name=forma]').forEach(r=>r.addEventListener('change',()=>{fp();const sel=$('#oConta');const d=defaultConta(f.elements.forma.value);if(sel&&d&&!id)sel.value=d}));
-    $('#oParcelas').addEventListener('input',credPrev);$('#oEntrada').addEventListener('input',()=>{credPrev();fp()});$('#oVenc').addEventListener('change',credPrev);
+    f.querySelectorAll('[name=forma]').forEach(r=>r.addEventListener('change',()=>{fp();const d=defaultConta(f.elements.forma.value);if(d&&!id&&pags.length===1){pags[0].contaId=d;drawPg()}pgInfo()}));
+    $('#oParcelas').addEventListener('input',credPrev);$('#oEntrada').addEventListener('input',()=>{credPrev();fp();pgInfo()});$('#oVenc').addEventListener('change',credPrev);
     $('#oParc').addEventListener('change',e=>{$('#novoParc').hidden=e.target.value!=='__novo'});
-    fp();drawRows();
+    fp();drawRows();drawPg();
   },onSubmit:async f=>{
     let parceiroId=fv(f,'parceiroId');
     if(!parceiroId)throw`Selecione o ${isC?'fornecedor':'cliente'}.`;
@@ -1256,7 +1273,6 @@ function formOp(col,id){
     if(its.some(i=>i.kg<=0))throw'Todo item precisa ter peso maior que zero.';
     if(its.some(i=>i.precoKg<=0)&&f.elements.forma.value!=='permuta')throw'Informe o preço por kg de todos os itens.';
     const forma=f.elements.forma.value;
-    if((forma==='dinheiro'||forma==='pix')&&!fv(f,'contaId'))throw'Cadastre uma conta de saldo para registrar o pagamento.';
     const total=r2(its.reduce((a,i)=>a+i.kg*i.precoKg,0)),totalKg=r2(its.reduce((a,i)=>a+i.kg,0));
     let novoParc=null;
     if(parceiroId==='__novo'){const nome=fv(f,'np_nome');if(!nome)throw'Informe o nome do novo cadastro.';parceiroId=nid();
@@ -1272,8 +1288,18 @@ function formOp(col,id){
     const entrada=forma==='credito'?r2(num(fv(f,'entrada'))):0;
     if(entrada<0||(forma==='credito'&&entrada>=total-0.005&&total>0))throw'A entrada precisa ser menor que o total. Se foi tudo à vista, escolha Dinheiro ou PIX.';
     const usaConta=forma==='dinheiro'||forma==='pix'||entrada>0;
-    const contaId=usaConta?fv(f,'contaId'):'';
-    if(usaConta&&!contaId)throw'Cadastre uma conta de saldo para registrar o pagamento.';
+    const valorCaixa=forma==='dinheiro'||forma==='pix'?total:entrada;
+    let pagamentos=[];
+    if(usaConta){const ps=f.__pags();if(ps.some(x=>!x.contaId))throw'Cadastre uma conta de saldo para registrar o pagamento.';
+      const vazios=ps.filter(x=>x.valor==='');if(vazios.length>1)throw'Informe o valor de cada conta (pode deixar só uma em branco para ficar com o restante).';
+      const soma=r2(ps.reduce((a,x)=>a+num(x.valor),0));
+      pagamentos=ps.map(x=>({contaId:x.contaId,valor:x.valor===''?r2(valorCaixa-soma):r2(num(x.valor))}));
+      if(pagamentos.some(x=>x.valor<=0))throw'Cada conta precisa ter valor maior que zero.';
+      const tot=r2(pagamentos.reduce((a,x)=>a+x.valor,0));
+      if(Math.abs(tot-valorCaixa)>0.005)throw`A soma das contas (${brl(tot)}) precisa ser igual ${forma==='credito'?'à entrada':'ao total'} (${brl(valorCaixa)}).`;
+      // mesma conta repetida vira uma linha só
+      const m=new Map();pagamentos.forEach(x=>m.set(x.contaId,r2((m.get(x.contaId)||0)+x.valor)));pagamentos=[...m].map(([contaId,valor])=>({contaId,valor}))}
+    const contaId=pagamentos[0]?.contaId||'';
     const aPrazo=forma==='credito'?r2(total-entrada):0;
     const lado=isC?'pagar':'receber',categoria=isC?'Compra de material':'Venda de material';
     // edição: decide o que fazer com as parcelas já existentes, sem perder baixas
@@ -1288,7 +1314,7 @@ function formOp(col,id){
     if(novoParc)await put('parceiros',novoParc);
     else{const p=byId('parceiros',parceiroId);if(p&&!(isC?p.fornecedor:p.cliente))await put('parceiros',{...p,[isC?'fornecedor':'cliente']:true})}
     const numero=id?o.numero:await proximoNumero(col);
-    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma,contaId,entrada,parcelas,primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma,contaId,pagamentos,entrada,parcelas,primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
     await put(col,rec);
     const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(novoParc?.nome||'');
     const desc=`${isC?'Compra':'Venda'} #${numero} · ${pn}`;
@@ -1305,10 +1331,10 @@ function formOp(col,id){
       if(forma==='credito'&&aPrazo>0)for(const x of novasParcelas(parcelas,aPrazo,primeiroVenc,1,parcelas))await put('titulos',x)}
     // lançamento de caixa da própria operação (à vista ou entrada): atualiza no lugar
     const proprios=S.movimentos.filter(m=>m.ref?.col===col&&m.ref.id===opId);
-    const valorCaixa=forma==='dinheiro'||forma==='pix'?total:entrada;
-    if(valorCaixa>0){const m0=proprios[0];for(const m of proprios.slice(1))await del('movimentos',m.id);
-      await put('movimentos',{...(m0||{id:nid(),criadoEm:Date.now()}),tipo:isC?'saida':'entrada',data,valor:valorCaixa,contaId,descricao:desc+(forma==='credito'?' (entrada)':` (${FORMA[forma]})`),categoria,parceiroId,ref:{col,id:opId}})}
-    else for(const m of proprios)await del('movimentos',m.id);
+    // um lançamento por conta; reaproveita os existentes na edição
+    for(const [i,pg] of pagamentos.entries()){const m0=proprios[i];
+      await put('movimentos',{...(m0||{id:nid(),criadoEm:Date.now()}),tipo:isC?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:desc+(forma==='credito'?' (entrada)':` (${FORMA[forma]})`)+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),categoria,parceiroId,ref:{col,id:opId}})}
+    for(const m of proprios.slice(pagamentos.length))await del('movimentos',m.id);
     toast(`${isC?'Compra':'Venda'} #${numero} salva`);
   }});
 }
