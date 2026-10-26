@@ -324,7 +324,7 @@ const ICON={
   historico:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   config:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 };
-const CORHEX={'Natural':'#EDE6D3','Branco':'#FFFFFF','Preto':'#1A1A1A','Azul':'#1F5FD1','Verde':'#2E8B57','Vermelho':'#C8322B','Amarelo':'#E7C021','Cinza':'#8C939C','Laranja':'#E57B22','Marrom':'#7A4E2D','Mista':'linear-gradient(135deg,#1F5FD1,#2E8B57 50%,#E7C021)','Transparente':'#E8F1F6'};
+const CORHEX={'Natural':'#EDE6D3','Incolor':'#EEF3F6','Branco':'#FFFFFF','Preto':'#1A1A1A','Azul':'#1F5FD1','Verde':'#2E8B57','Vermelho':'#C8322B','Amarelo':'#E7C021','Cinza':'#8C939C','Laranja':'#E57B22','Marrom':'#7A4E2D','Mista':'linear-gradient(135deg,#1F5FD1,#2E8B57 50%,#E7C021)','Transparente':'#E8F1F6'};
 const swatch=c=>`<span class="swatch" style="background:${CORHEX[c]||'#bbb'}"></span>`;
 
 /* ===================== dados ===================== */
@@ -911,7 +911,8 @@ async function verHist(col,id){
 function vConfig(){
   const c=cfg();
   const listEd=(k,l)=>`<div class="card"><div class="card-h"><h2>${l}</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;flex-wrap:wrap;gap:6px">${c[k].map((v,i)=>`<span class="pill p-grey" style="font-size:13px;padding:4px 6px 4px 10px">${k==='cores'?swatch(v):''}${esc(v)} <button class="link" style="color:var(--muted);margin-left:4px" data-act="cfgDel" data-k="${k}" data-i="${i}" aria-label="Remover ${esc(v)}">×</button></span>`).join('')}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${c[k].map((v,i)=>`<span class="pill p-grey" style="font-size:13px;padding:4px 6px 4px 10px">${k==='cores'?swatch(v):''}<button class="link" style="color:inherit" data-act="cfgRen" data-k="${k}" data-i="${i}" title="Renomear">${esc(v)}</button> <button class="link" style="color:var(--muted);margin-left:4px" data-act="cfgDel" data-k="${k}" data-i="${i}" aria-label="Remover ${esc(v)}">×</button></span>`).join('')}</div>
+    <div class="muted" style="font-size:12.5px">Clique num nome para renomear. Os lançamentos já feitos são atualizados junto.</div>
     <form data-form="cfgAdd" data-k="${k}" style="display:flex;gap:8px"><input class="search" name="v" id="cfg-${k}" placeholder="Adicionar…" style="flex:1"><button class="btn sm">Adicionar</button></form></div></div>`;
   const ex=COLS.reduce((a,col)=>a+S[col].filter(x=>x.exemplo).length,0);
   return{sub:'Contas de saldo, materiais, cores e categorias',actions:'',html:`
@@ -1230,6 +1231,16 @@ document.addEventListener('click',async e=>{
     case 'histPer':UI.histPer=b.dataset.v;loadHist(true);break;
     case 'dispensar':(UI.dispensados||(UI.dispensados=new Set())).add(id);render();break;
     case 'delAjuste':if(await ask('Excluir ajuste','Excluir este ajuste de estoque?',[{label:'Excluir',cls:'danger',v:true}])){await del('ajustes',id);toast('Ajuste excluído')}break;
+    case 'cfgRen':{const k=b.dataset.k,i=+b.dataset.i,old=cfg()[k][i];
+      modal('Renomear',`<label class="fl">Novo nome para “${esc(old)}”<input name="v" value="${esc(old)}" required></label>`,{submit:'Renomear',onSubmit:async f=>{
+        const v=fv(f,'v');if(!v)throw'Informe o nome.';if(v===old)return;const l=cfg()[k].slice();if(l.includes(v))throw'Esse nome já existe na lista.';
+        l[i]=v;await saveCfg({[k]:l});
+        const campo=k==='tipos'?'tipo':k==='cores'?'cor':'categoria';let n=0;
+        if(campo==='categoria'){for(const col of ['movimentos','titulos'])for(const x of S[col].filter(x=>x.categoria===old)){await put(col,{...x,categoria:v});n++}}
+        else{for(const col of ['compras','vendas'])for(const x of S[col].filter(x=>(x.itens||[]).some(it=>it[campo]===old))){await put(col,{...x,itens:x.itens.map(it=>it[campo]===old?{...it,[campo]:v}:it)});n++}
+          for(const x of S.ajustes.filter(x=>x[campo]===old)){await put('ajustes',{...x,[campo]:v});n++}
+          if(UI.estCor===old)UI.estCor=v;if(UI.estTipo===old)UI.estTipo=v}
+        toast(`Renomeado${n?` · ${n} lançamento(s) atualizado(s)`:''}`)}});break}
     case 'cfgDel':{const k=b.dataset.k;const l=cfg()[k].slice();l.splice(+b.dataset.i,1);await saveCfg({[k]:l});break}
     case 'limparEx':{if(!await ask('Remover dados de exemplo','Todos os registros marcados como exemplo serão apagados. Os dados que você lançou continuam.',[{label:'Remover exemplos',cls:'danger',v:true}]))break;
       const usados=new Set();['movimentos','compras','vendas','titulos'].forEach(c=>S[c].filter(x=>!x.exemplo).forEach(x=>[x.contaId,x.contaDestinoId,x.parceiroId].forEach(v=>v&&usados.add(v))));
