@@ -16,4 +16,15 @@ Site estático (GitHub Pages) com banco de dados e login no Supabase.
 - `index.html`: o ERP inteiro (HTML, CSS e JS).
 - `config.js`: endereço e chave pública do Supabase.
 - `vendor/supabase.js`: biblioteca supabase-js 2.117.3 (MIT).
-- `supabase/schema.sql`: tabela `docs` (col, id, data jsonb) com RLS para usuários logados e realtime.
+- `supabase/schema.sql`: tabela `docs` (col, id, data jsonb) com RLS para usuários logados e realtime, mais o histórico.
+- `supabase/historico.sql`: histórico de alterações (tabela `historico` + gatilho). Rode em bancos criados antes do histórico.
+
+
+
+## Sincronização
+
+Cada alteração é gravada no Supabase na hora. Se a internet cair, as alterações ficam numa fila no navegador e são enviadas sozinhas quando a conexão volta. As telas recebem as mudanças dos outros usuários em tempo real e recarregam os dados ao voltar para a aba e a cada 60 segundos. O indicador no topo mostra "Sincronizado", "Salvando…" ou "Sem conexão".
+
+## Histórico de alterações
+
+Toda criação, alteração e exclusão é registrada pelo banco (gatilho em `docs`), com usuário, data, hora e os dados antes e depois. Ninguém consegue apagar ou editar o histórico pelo sistema. Veja no menu **Histórico** ou no botão de relógio ao lado de cada registro.
