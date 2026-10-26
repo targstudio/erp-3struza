@@ -48,6 +48,8 @@ end $$;
 drop trigger if exists docs_auditar on public.docs;
 create trigger docs_auditar after insert or update or delete on public.docs
 for each row execute function public.docs_auditar();
+-- a função só roda pelo gatilho; ninguém precisa chamá-la direto pela API
+revoke execute on function public.docs_auditar() from public, anon, authenticated;
 
 -- Tempo real: o histórico aparece na tela assim que alguém salva algo.
 do $$ begin
