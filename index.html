@@ -348,6 +348,7 @@ function saveLocal(){try{localStorage.setItem('3struza-erp',JSON.stringify(S))}c
 
 function upsertLocal(col,obj){const i=S[col].findIndex(x=>x.id===obj.id);if(i>=0)S[col][i]=obj;else S[col].push(obj)}
 async function put(col,obj){
+  if(obj.exemplo){obj={...obj};delete obj.exemplo} // registro tocado pelo usuário deixa de ser exemplo
   const {id,...data}=obj;
   if(MODE==='supa'){upsertLocal(col,obj);schedule();enqueue({t:'put',col,id,data});return}
   if(MODE==='db'){await DB.collection(col).doc(id).set(data)}
@@ -754,19 +755,23 @@ function finStatus(x){
 
 /* ---------- Estoque ---------- */
 function vEstoque(){
-  let rows=estoque().filter(e=>Math.abs(e.kg)>0.0001||Math.abs(e.un)>0.0001);
-  const all=rows;
+  const todos=estoque();
+  let rows=todos.filter(e=>Math.abs(e.kg)>0.0001||Math.abs(e.un)>0.0001);
+  const all=rows,zerados=todos.length-rows.length;
+  if(UI.estZero)rows=todos;
   if(UI.estTipo)rows=rows.filter(e=>e.tipo===UI.estTipo);
   if(UI.estCor)rows=rows.filter(e=>e.cor===UI.estCor);
   const porTipo={};all.forEach(e=>{const p=porTipo[e.tipo]||(porTipo[e.tipo]={kg:0,valor:0,saco:0,bigbag:0,granel:0,cores:{}});p.kg+=e.kg;p.valor+=e.valor;p[e.embalagem]+=e.embalagem==='granel'?e.kg:e.un;p.cores[e.cor]=(p.cores[e.cor]||0)+e.kg});
   const maxT=Math.max(1,...Object.values(porTipo).map(p=>p.kg));
-  const tipos=[...new Set(all.map(e=>e.tipo))],cores=[...new Set(all.map(e=>e.cor))];
+  const tipos=[...new Set(todos.map(e=>e.tipo))],cores=[...new Set(todos.map(e=>e.cor))];
   // kardex
   const kx=[];
   S.compras.forEach(c=>(c.itens||[]).forEach(it=>kx.push({data:c.data,o:'Compra #'+c.numero,p:parcNome(c.parceiroId),it,s:1})));
   S.vendas.forEach(c=>(c.itens||[]).forEach(it=>kx.push({data:c.data,o:'Venda #'+c.numero,p:parcNome(c.parceiroId),it,s:-1})));
   S.ajustes.forEach(a=>kx.push({data:a.data,o:'Ajuste',p:a.motivo||'',it:a,s:a.sentido==='saida'?-1:1,aj:a.id}));
   kx.sort((a,b)=>b.data.localeCompare(a.data));
+  const kxF=kx.filter(k=>(!UI.estTipo||k.it.tipo===UI.estTipo)&&(!UI.estCor||k.it.cor===UI.estCor));
+  const filtrado=!!(UI.estTipo||UI.estCor),kxShow=filtrado?kxF:kxF.slice(0,40);
   const totKg=rows.reduce((a,e)=>a+e.kg,0),totVal=rows.reduce((a,e)=>a+e.valor,0);
   return{sub:'Saldo por tipo de material, cor e embalagem',actions:`<button class="btn" data-act="ajuste">Ajuste / estoque inicial</button>`,html:`
   <div class="grid stock">${Object.entries(porTipo).map(([t,p])=>`<div class="sc"><h3>${esc(t)}</h3><b class="num ${p.kg<0?'neg':''}">${fkg(p.kg)}</b><div class="bar"><i style="width:${Math.max(0,p.kg)/maxT*100}%"></i></div>
@@ -775,13 +780,14 @@ function vEstoque(){
     <div class="muted" style="font-size:12.5px">Custo estimado ${brl(p.valor)}</div></div>`).join('')||`<div class="card"><div class="empty"><b>Estoque vazio</b>As compras entram no estoque automaticamente. Para material que já está no barracão, use “Ajuste / estoque inicial”.</div></div>`}</div>
   <div class="card"><div class="card-h"><h2>Saldo detalhado</h2><div class="sp toolbar">
     <select class="f" data-act="estTipo" id="estTipo"><option value="">Todos os tipos</option>${tipos.map(t=>`<option ${UI.estTipo===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
-    <select class="f" data-act="estCor" id="estCor"><option value="">Todas as cores</option>${cores.map(t=>`<option ${UI.estCor===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div></div>
+    <select class="f" data-act="estCor" id="estCor"><option value="">Todas as cores</option>${cores.map(t=>`<option ${UI.estCor===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
+    ${zerados?`<label style="display:flex;gap:6px;align-items:center;font-size:13.5px;white-space:nowrap"><input type="checkbox" data-act="estZero" ${UI.estZero?'checked':''}> Mostrar zerados (${zerados})</label>`:''}</div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Material</th><th>Cor</th><th>Embalagem</th><th class="r">Peso da embalagem</th><th class="r">Qtd. embalagens</th><th class="r">Peso total</th><th class="r">Custo médio/kg</th><th class="r">Valor em estoque</th></tr></thead><tbody>
     ${rows.map(e=>`<tr><td>${esc(e.tipo)}</td><td>${swatch(e.cor)}${esc(e.cor)}</td><td>${EMB[e.embalagem]}</td><td class="r">${e.embalagem==='granel'?'—':fkg(e.pesoUn)}</td><td class="r">${e.embalagem==='granel'?'—':fnum(e.un,0)}</td><td class="r ${e.kg<0?'neg':''}"><b>${fkg(e.kg)}</b></td><td class="r">${e.custoKg?brl(e.custoKg):'—'}</td><td class="r">${brl(e.valor)}</td></tr>`).join('')||'<tr><td colspan="8"><div class="empty">Nenhum item para o filtro.</div></td></tr>'}
     </tbody>${rows.length?`<tfoot><tr><td colspan="5">Total</td><td class="r">${fkg(totKg)}</td><td></td><td class="r">${brl(totVal)}</td></tr></tfoot>`:''}</table></div></div>
-  <div class="card"><div class="card-h"><h2>Movimentação de estoque</h2><span class="sp muted" style="font-size:13px">últimos 40 lançamentos</span></div>
+  <div class="card"><div class="card-h"><h2>Movimentação de estoque</h2><span class="sp muted" style="font-size:13px">${filtrado?`${kxF.length} lançamento(s) de ${esc([UI.estTipo,UI.estCor].filter(Boolean).join(' '))}`:'últimos 40 lançamentos · filtre por tipo ou cor para ver tudo'}</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Origem</th><th>Material</th><th>Embalagem</th><th class="r">Peso</th><th></th></tr></thead><tbody>
-    ${kx.slice(0,40).map(k=>`<tr><td class="num">${fd(k.data)}</td><td>${esc(k.o)} <span class="muted">${esc(k.p)}</span></td><td>${swatch(k.it.cor)}${esc(k.it.tipo)} ${esc(k.it.cor)}</td><td class="muted">${k.it.embalagem==='granel'?'Granel':fnum(k.it.qtd,0)+' × '+EMB[k.it.embalagem]+' '+fnum(k.it.pesoUn,0)+' kg'}</td><td class="r ${k.s>0?'pos':'neg'}">${k.s>0?'+ ':'− '}${fkg(k.it.kg)}</td><td class="acts">${k.aj?`<button class="btn sm danger" data-act="delAjuste" data-id="${k.aj}">Excluir</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6"><div class="empty">Sem movimentação.</div></td></tr>'}
+    ${kxShow.map(k=>`<tr><td class="num">${fd(k.data)}</td><td>${esc(k.o)} <span class="muted">${esc(k.p)}</span></td><td>${swatch(k.it.cor)}${esc(k.it.tipo)} ${esc(k.it.cor)}</td><td class="muted">${k.it.embalagem==='granel'?'Granel':fnum(k.it.qtd,0)+' × '+EMB[k.it.embalagem]+' '+fnum(k.it.pesoUn,0)+' kg'}</td><td class="r ${k.s>0?'pos':'neg'}">${k.s>0?'+ ':'− '}${fkg(k.it.kg)}</td><td class="acts">${k.aj?`<button class="btn sm danger" data-act="delAjuste" data-id="${k.aj}">Excluir</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6"><div class="empty">Sem movimentação.</div></td></tr>'}
     </tbody></table></div></div>`};
 }
 
@@ -874,7 +880,8 @@ function histRow(h,compact){
     ${compact?'':`<td class="muted">${esc(COLNOME[h.col]||h.col)}</td>`}
     <td style="min-width:260px">${esc(descReg(h.col,h.depois||h.antes))}
       <div><button class="link" style="font-size:13px" data-act="histToggle" data-id="${h.hid}">${open?'Ocultar detalhes':'Ver detalhes'}</button></div>
-      ${open?`<div class="hrow-diff">${diffHtml(h)}</div>`:''}</td></tr>`;
+      ${open?`<div class="hrow-diff">${diffHtml(h)}</div>`:''}
+      ${h.acao==='excluiu'&&h.antes&&!byId(h.col,h.id)?`<div><button class="btn sm" style="margin-top:6px" data-act="histRestaurar" data-id="${h.hid}">Restaurar</button></div>`:''}</td></tr>`;
 }
 function vHistorico(){
   if(MODE!=='supa')return{sub:'Quem alterou o quê e quando',html:`<div class="card"><div class="empty"><b>Histórico disponível na versão hospedada</b>Abra o ERP pelo endereço targstudio.github.io/erp-3struza.</div></div>`};
@@ -1216,13 +1223,18 @@ document.addEventListener('click',async e=>{
     case 'ajuste':formAjuste();break;
     case 'hist':verHist(b.dataset.col,id);break;
     case 'histMais':loadHist(false);break;
+    case 'histRestaurar':{const h=HIST.rows.find(x=>x.hid===+id);if(!h||!h.antes)break;
+      if(!await ask('Restaurar registro',`Recriar “${esc(descReg(h.col,h.antes))}” como estava antes de ser excluído?`+(h.col==='compras'||h.col==='vendas'?' As parcelas e lançamentos de caixa ligados a ela aparecem no histórico e podem ser restaurados um a um.':''),[{label:'Restaurar',cls:'pri',v:true}]))break;
+      await put(h.col,{...h.antes,id:h.id});toast('Registro restaurado');break}
     case 'histToggle':UI.histOpen.has(+id)?UI.histOpen.delete(+id):UI.histOpen.add(+id);render();break;
     case 'histPer':UI.histPer=b.dataset.v;loadHist(true);break;
     case 'dispensar':(UI.dispensados||(UI.dispensados=new Set())).add(id);render();break;
     case 'delAjuste':if(await ask('Excluir ajuste','Excluir este ajuste de estoque?',[{label:'Excluir',cls:'danger',v:true}])){await del('ajustes',id);toast('Ajuste excluído')}break;
     case 'cfgDel':{const k=b.dataset.k;const l=cfg()[k].slice();l.splice(+b.dataset.i,1);await saveCfg({[k]:l});break}
     case 'limparEx':{if(!await ask('Remover dados de exemplo','Todos os registros marcados como exemplo serão apagados. Os dados que você lançou continuam.',[{label:'Remover exemplos',cls:'danger',v:true}]))break;
-      let n=0;for(const col of COLS)for(const x of S[col].filter(x=>x.exemplo)){await del(col,x.id);n++}toast(n+' registros removidos');break}
+      const usados=new Set();['movimentos','compras','vendas','titulos'].forEach(c=>S[c].filter(x=>!x.exemplo).forEach(x=>[x.contaId,x.contaDestinoId,x.parceiroId].forEach(v=>v&&usados.add(v))));
+      let n=0,k=0;for(const col of COLS)for(const x of S[col].filter(x=>x.exemplo)){if((col==='contas'||col==='parceiros')&&usados.has(x.id)){await put(col,x);k++;continue}await del(col,x.id);n++}
+      toast(n+' registros removidos'+(k?`, ${k} mantidos por estarem em uso`:''));break}
   }}catch(ex){console.error(ex);toast('Erro: '+(ex?.message||ex?.code||ex))}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('.nav a')){e.target.click()}});
@@ -1231,7 +1243,8 @@ document.addEventListener('change',e=>{const a=e.target.dataset?.act;
   if(a==='histCol'){UI.histCol=e.target.value;loadHist(true)}
   if(a==='fConta'){UI.filtroConta=e.target.value;render()}
   if(a==='estTipo'){UI.estTipo=e.target.value;render()}
-  if(a==='estCor'){UI.estCor=e.target.value;render()}});
+  if(a==='estCor'){UI.estCor=e.target.value;render()}
+  if(a==='estZero'){UI.estZero=e.target.checked;render()}});
 let bt=null;document.addEventListener('input',e=>{if(e.target.id==='busca'){UI.busca=e.target.value;clearTimeout(bt);bt=setTimeout(render,180)}});
 document.addEventListener('submit',async e=>{const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
   try{if(f.dataset.form==='cfgAdd'){const k=f.dataset.k;const v=f.elements.v.value.trim();if(!v)return;const l=cfg()[k];if(l.includes(v)){toast('Já existe');return}await saveCfg({[k]:[...l,v]});toast('Adicionado')}
