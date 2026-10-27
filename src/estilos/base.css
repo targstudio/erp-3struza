@@ -1,0 +1,28 @@
+/* reset da versão hospedada */
+*{box-sizing:border-box}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}
+
+/* Layout: sidebar grafite fixa com a marca + área de trabalho clara com cabeçalho, filtros de mês e tabelas operacionais */
+:root{
+  --brand:#0B419E; --graphite:#30363C;
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#F6F8FB; --fg:#1A1F26; --muted:#6B7380; --line:#E6EAF0;
+  --accent:#0B419E; --accent-hover:#08357F; --on-accent:#FFFFFF; --accent-soft:#EAF1FD; --notice:#F2F7FF; --notice-line:#C9DBF7;
+  --side:#FFFFFF; --side-fg:#3A414B; --side-active:#EAF1FD; --side-icon:#7A828D;
+  --pos:#1E8449; --pos-soft:#E5F4EB; --neg:#C0392B; --neg-soft:#FBEAE8; --warn:#A86A0C; --warn-soft:#FBF1DF;
+  --shadow:0 1px 2px rgba(20,30,45,.06),0 4px 14px rgba(20,30,45,.05);
+  --f-display:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --logo-l:block; --logo-d:none;
+  --g-blue:linear-gradient(135deg,#3B8BEB 0%,#0B419E 100%);
+  --g-graph:linear-gradient(135deg,#8B5CF6 0%,#4F46E5 100%);
+  --g-green:linear-gradient(135deg,#3DAA7A 0%,#1F6F57 100%);
+}
+:root{color-scheme:light}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+.num,td.r,.kpi b{font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100%}
+

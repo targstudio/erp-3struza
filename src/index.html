@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ERP 3STRUZA</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<!-- scripts clássicos servidos ao lado do index.html (não passam pelo Vite) -->
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
+<script type="module" src="./main.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="logo"><div class="mark"><img src="./assets/mark3.png" alt=""></div><div class="nm"><img class="lg-l" src="./assets/logo_light.png" alt="3STRUZA"><img class="lg-d" src="./assets/logo_dark.png" alt="3STRUZA"><small>Gestão de reciclados PP</small></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot" id="foot"><div class="avatar" id="av">3</div><div style="min-width:0"><b id="uname">3STRUZA</b><small id="urole">Carregando…</small></div><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <main class="main">
+    <header class="top">
+      <button class="burger" id="burger" aria-label="Abrir menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div><h1 id="hello">Olá!</h1><div class="sub">Aqui está o resumo do seu dia</div></div>
+      <div class="syncpill ok" id="sync" hidden><i></i><span>Sincronizado</span></div>
+      <div class="datepill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span id="today"></span></div>
+    </header>
+    <section class="content" id="view"><div class="empty"><b>Carregando dados…</b>Conectando ao banco do ERP.</div></section>
+  </main>
+</div>
+<div id="modalRoot"></div>
+<div id="login" class="login" hidden><form id="lgForm" class="login-card" novalidate>
+  <div class="login-mark"><img src="./assets/mark3.png" alt=""></div>
+  <img class="login-logo" src="./assets/logo_light.png" alt="3STRUZA">
+  <p class="muted" style="margin:0">Gestão de reciclados PP</p>
+  <label class="fl">E-mail<input type="email" id="lgEmail" autocomplete="username" required></label>
+  <label class="fl">Senha<input type="password" id="lgPass" autocomplete="current-password" required></label>
+  <div class="err" id="lgErr" hidden></div>
+  <button class="btn pri" type="submit" style="justify-content:center;padding:12px">Entrar</button>
+  <button type="button" class="link" id="lgForgot" style="align-self:center;font-size:13.5px">Esqueci minha senha</button>
+  <div class="hint" id="lgOk" hidden style="text-align:center"></div>
+</form></div>
+</body>
+</html>

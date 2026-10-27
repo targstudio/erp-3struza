@@ -1,0 +1,18 @@
+/* contas cards */
+.accts{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.acct{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.acct .t{display:flex;align-items:center;gap:8px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.acct .n{font-weight:600}
+.acct b{font-family:var(--f-display);font-size:24px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.d-banco{background:var(--accent)} .d-gaveta{background:var(--pos)} .d-credito{background:var(--warn)}
+
+/* estoque */
+.stock{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.sc{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.sc h3{margin:0;font-family:var(--f-display);font-size:17px}
+.sc b{font-family:var(--f-display);font-size:26px}
+.bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--accent)}
+.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--line);vertical-align:-1px;margin-right:6px}
+

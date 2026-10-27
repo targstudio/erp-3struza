@@ -13,13 +13,38 @@ Site estático (GitHub Pages) com banco de dados e login no Supabase.
 
 ## Arquivos
 
-- `index.html`: o ERP inteiro (HTML, CSS e JS).
+- `index.html`: o ERP pronto para o navegador (gerado pelo `npm run build`, não editar à mão).
+- `src/`: código-fonte do ERP.
+  - `index.html`: estrutura da página (menu, cabeçalho, login).
+  - `main.js`: inicialização.
+  - `util.js`, `dados.js`, `sync.js`: utilidades, estado dos dados e sincronização com o Supabase.
+  - `regras.js`: regras de negócio (saldo, estoque, custo médio, margem, parcelas).
+  - `estado.js`, `render.js`, `modal.js`, `eventos.js`: navegação, desenho das telas, janelas e cliques.
+  - `telas/`: uma tela por arquivo (painel, caixa, contas, compras/vendas, estoque, relatórios…).
+  - `forms/`: formulários (compra/venda, título, conta, parceiro, ajuste, pagamento).
+  - `impressos.js`, `backup.js`: recibo, romaneio e backup.
+  - `estilos/`: CSS (base com as cores e fontes, menu, conteúdo, telas, janelas).
+  - `assets/`: logos.
+- `test/`: testes automáticos dos cálculos e dos formulários.
 - `config.js`: endereço e chave pública do Supabase.
 - `vendor/supabase.js`: biblioteca supabase-js 2.117.3 (MIT).
 - `supabase/schema.sql`: tabela `docs` (col, id, data jsonb) com RLS para usuários logados e realtime, mais o histórico.
 - `supabase/historico.sql`: histórico de alterações (tabela `historico` + gatilho). Rode em bancos criados antes do histórico.
 
+## Desenvolvimento
 
+Precisa do Node.js 20 ou mais novo.
+
+```sh
+npm install      # uma vez
+npm run dev      # abre o ERP local com recarga automática
+npm test         # roda os testes
+npm run build    # gera o index.html da raiz
+```
+
+Fluxo de mudança: edite os arquivos em `src/`, rode `npm test` e `npm run build`, e faça commit junto do `index.html` gerado. O GitHub Pages publica o `index.html` da raiz do branch `main`. A verificação automática do GitHub (aba *Actions*) roda os testes e acusa erro se o `index.html` não tiver sido gerado a partir do `src/`.
+
+Sem `config.js` preenchido (ou abrindo o `index.html` direto do disco sem Supabase), o ERP roda em modo local e guarda os dados só no navegador, o que serve para testes.
 
 ## Sincronização
 

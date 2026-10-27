@@ -1,0 +1,42 @@
+import {COLS,S,contaNome,parcNome} from './dados.js';
+import {EMB,FORMA,TIPOCONTA,estoque,saldoConta,statusT} from './regras.js';
+import {baixarArquivo} from './telas/caixa.js';
+import {fd,num,r2,today} from './util.js';
+
+/* ---------- Backup em planilha (.xlsx) ---------- */
+// zip simples sem compressão, suficiente para gerar o .xlsx no navegador
+function zipStore(files){const enc=new TextEncoder();const crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+  const crc=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=crcT[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+  const parts=[],cen=[];let off=0;
+  const u16=n=>[n&255,n>>8&255],u32=n=>[n&255,n>>8&255,n>>16&255,n>>>24&255];
+  for(const[name,str]of files){const nb=enc.encode(name),db=enc.encode(str),c=crc(db);
+    const lh=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x800),...u16(0),...u16(0),...u16(0),...u32(c),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0)]);
+    parts.push(lh,nb,db);cen.push(new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x800),...u16(0),...u16(0),...u16(0),...u32(c),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),nb);
+    off+=lh.length+nb.length+db.length}
+  const cenLen=cen.reduce((a,b)=>a+b.length,0);
+  return new Blob([...parts,...cen,new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(cenLen),...u32(off),...u16(0)])],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+function xlsx(sheets){const x=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
+  const col=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+  const sheetXml=rows=>`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>{const ref=col(ci)+(ri+1);return typeof v==='number'&&isFinite(v)?`<c r="${ref}"><v>${v}</v></c>`:`<c r="${ref}" t="inlineStr"${ri===0?' s="1"':''}><is><t xml:space="preserve">${x(v)}</t></is></c>`}).join('')}</row>`).join('')}</sheetData></worksheet>`;
+  const f=[['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+    ['_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ['xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${x(s[0]).slice(0,31)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],
+    ['xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
+    ...sheets.map((s,i)=>[`xl/worksheets/sheet${i+1}.xml`,sheetXml(s[1])])];
+  return zipStore(f)}
+function baixarBackup(){
+  const n=v=>r2(num(v));
+  const sh=[
+    ['Contas de saldo',[['Nome','Tipo','Detalhe','Saldo inicial','Saldo atual','Ativa']].concat(S.contas.map(c=>[c.nome,TIPOCONTA[c.tipo],c.detalhe||'',n(c.saldoInicial),saldoConta(c.id),c.ativo===false?'Não':'Sim']))],
+    ['Caixa',[['Data','Tipo','Descrição','Categoria','Conta','Conta destino','Cliente/fornecedor','Valor']].concat(S.movimentos.slice().sort((a,b)=>a.data.localeCompare(b.data)).map(m=>[fd(m.data),{entrada:'Entrada',saida:'Saída',transferencia:'Transferência'}[m.tipo],m.descricao,m.categoria||'',contaNome(m.contaId),m.contaDestinoId?contaNome(m.contaDestinoId):'',m.parceiroId?parcNome(m.parceiroId):'',n(m.valor)]))],
+    ['Contas a pagar e receber',[['Lado','Vencimento','Descrição','Cliente/fornecedor','Categoria','Parcela','Valor','Situação','Pago em','Valor pago']].concat(S.titulos.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento)).map(t=>[t.lado==='pagar'?'A pagar':'A receber',fd(t.vencimento),t.descricao,t.parceiroId?parcNome(t.parceiroId):'',t.categoria||'',t.totalParcelas>1?t.parcela+'/'+t.totalParcelas:'',n(t.valor),statusT(t),t.pago?fd(t.pagoEm):'',t.pago?n(t.valorPago):'']))],
+    ...['compras','vendas'].map(col=>[col==='compras'?'Compras':'Vendas',[['Nº','Data',col==='compras'?'Fornecedor':'Cliente','Material','Cor','Embalagem','Qtd','Peso emb. (kg)','Peso (kg)','R$/kg','Subtotal','Total da operação','Pagamento']].concat(S[col].slice().sort((a,b)=>a.data.localeCompare(b.data)).flatMap(o=>(o.itens||[]).map(i=>[o.numero,fd(o.data),parcNome(o.parceiroId),i.tipo,i.cor,EMB[i.embalagem],n(i.qtd),n(i.pesoUn),n(i.kg),num(i.precoKg),n(num(i.kg)*num(i.precoKg)),n(o.total),FORMA[o.forma]])))]),
+    ['Estoque',[['Material','Cor','Embalagem','Peso emb. (kg)','Qtd embalagens','Peso total (kg)','Custo médio/kg','Valor']].concat(estoque().filter(e=>Math.abs(e.kg)>0.0001).map(e=>[e.tipo,e.cor,EMB[e.embalagem],e.pesoUn,e.un,n(e.kg),n(e.custoKg),n(e.valor)]))],
+    ['Ajustes de estoque',[['Data','Sentido','Material','Cor','Embalagem','Peso (kg)','Custo/kg','Motivo']].concat(S.ajustes.map(a=>[fd(a.data),a.sentido==='saida'?'Saída':'Entrada',a.tipo,a.cor,EMB[a.embalagem],n(a.kg),num(a.custoKg),a.motivo||'']))],
+    ['Clientes e fornecedores',[['Nome','Pessoa','CPF/CNPJ','Telefone','E-mail','Cidade','UF','Endereço','Fornecedor','Cliente','Observações']].concat(S.parceiros.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(p=>[p.nome,p.pessoa,p.documento||'',p.telefone||'',p.email||'',p.cidade||'',p.uf||'',p.endereco||'',p.fornecedor?'Sim':'',p.cliente?'Sim':'',p.obs||'']))]];
+  const a=document.createElement('a');a.href=URL.createObjectURL(xlsx(sh));a.download='backup-3struza-'+today()+'.xlsx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},0);
+}
+function baixarBackupJSON(){const o={geradoEm:new Date().toISOString()};COLS.forEach(c=>o[c]=S[c]);baixarArquivo(JSON.stringify(o,null,1),'backup-3struza-'+today()+'.json','application/json')}
+
+export {zipStore,xlsx,baixarBackup,baixarBackupJSON};
