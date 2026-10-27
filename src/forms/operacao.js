@@ -44,10 +44,10 @@ function formOp(col,id){
     const drawRows=()=>{tb.innerHTML=itens.map((it,i)=>{const av=!isC?dispMat(it.tipo,it.cor,id):null;return `<tr data-i="${i}">
       <td data-l="Tipo de material"><select data-k="tipo">${opt(c.tipos,it.tipo)}</select></td><td data-l="Cor"><select data-k="cor">${opt(c.cores,it.cor)}</select></td>
       <td data-l="Embalagem"><select data-k="embalagem">${Object.entries(EMB).map(([k,l])=>`<option value="${k}" ${it.embalagem===k?'selected':''}>${l}</option>`).join('')}</select></td>
-      <td data-l="Qtd."><input data-k="qtd" inputmode="decimal" value="${it.embalagem==='granel'?'':fnum(it.qtd)}" ${it.embalagem==='granel'?'disabled':''}></td>
-      <td data-l="Peso emb. (kg)"><input data-k="pesoUn" inputmode="decimal" value="${it.embalagem==='granel'?'':fnum(it.pesoUn)}" ${it.embalagem==='granel'?'disabled':''}></td>
-      <td data-l="Peso total (kg)"><input data-k="kg" inputmode="decimal" value="${fnum(it.kg)}">${av!==null?`<div class="avail ${av<num(it.kg)?'low':''}">Em estoque: ${fkg(av)}<span class="muted"> (${esc(it.tipo)} ${esc(it.cor)}, todas as embalagens)</span></div>`:''}</td>
-      <td data-l="R$/kg"><input data-k="precoKg" inputmode="decimal" value="${it.precoKg===''?'':fnum(it.precoKg,4)}"></td>
+      <td data-l="Qtd."><input data-k="qtd" inputmode="decimal" value="${it.embalagem==='granel'?'':fnum(num(it.qtd))}" ${it.embalagem==='granel'?'disabled':''}></td>
+      <td data-l="Peso emb. (kg)"><input data-k="pesoUn" inputmode="decimal" value="${it.embalagem==='granel'?'':fnum(num(it.pesoUn))}" ${it.embalagem==='granel'?'disabled':''}></td>
+      <td data-l="Peso total (kg)"><input data-k="kg" inputmode="decimal" value="${fnum(num(it.kg))}">${av!==null?`<div class="avail ${av<num(it.kg)?'low':''}">Em estoque: ${fkg(av)}<span class="muted"> (${esc(it.tipo)} ${esc(it.cor)}, todas as embalagens)</span></div>`:''}</td>
+      <td data-l="R$/kg"><input data-k="precoKg" inputmode="decimal" value="${it.precoKg===''?'':fnum(num(it.precoKg),4)}"></td>
       <td class="r" style="padding-top:12px;font-weight:600" data-l="Subtotal" data-sub>${brl(num(it.kg)*num(it.precoKg))}</td>
       <td><button type="button" class="btn sm danger" data-rm="${i}" ${itens.length<2?'disabled':''} aria-label="Remover item">×</button></td></tr>`}).join('');totals()};
     const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);const fc=freteCobrado();

@@ -1,10 +1,18 @@
 import {byId} from './dados.js';
 import {pgTxt} from './forms/pagamento.js';
-import {toast} from './modal.js';
+import {modal} from './modal.js';
 import {EMB,FORMA,FRETE,linked} from './regras.js';
 import {brl,esc,fd,fkg,fnum,num} from './util.js';
 
 /* ---------- Recibo / comprovante para imprimir ---------- */
+// mostra o documento dentro do sistema; o botão imprime só o documento
+function verImpresso(titulo,html){
+  html=html.replace(/<div class="noprint"[^]*?<\/div>/,'');
+  const f=modal(esc(titulo),`<iframe id="impFrame" title="${esc(titulo)}" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`,
+    {wide:true,submit:'',extra:'<button type="button" class="btn pri" id="impPrint">Imprimir ou salvar em PDF</button>'});
+  const fr=f.querySelector('#impFrame');fr.srcdoc=html;
+  f.querySelector('#impPrint').onclick=()=>fr.contentWindow.print();
+}
 function romaneio(id){
   const o=byId('vendas',id);if(!o)return;const p=byId('parceiros',o.parceiroId)||{};const fr=o.frete||{};
   const logo=document.querySelector('.login-logo')?.src||'';
@@ -16,7 +24,7 @@ function romaneio(id){
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-top:14px}.ass{margin-top:56px;display:flex;gap:30px}.ass div{flex:1;border-top:1px solid #1d2330;padding-top:6px;text-align:center;font-size:12px}
     @media print{.noprint{display:none}body{margin:12mm}}</style></head><body>
     <div class="noprint" style="margin-bottom:16px"><button onclick="print()" style="padding:8px 14px;font-size:14px">Imprimir ou salvar em PDF</button></div>
-    <div class="top"><div>${logo?`<img src="${logo}" style="height:34px">`:'<h1>3STRUZA</h1>'}<div class="muted">Comércio de PP reciclado</div></div>
+    <div class="top"><div>${logo?`<img src="${logo}" style="height:34px">`:'<h1>3STRUZA</h1>'}</div>
       <div style="text-align:right"><h1>Romaneio de carga</h1><div class="muted">Venda #${o.numero} · ${fd(o.data)}</div></div></div>
     <div class="grid"><div><b>Destinatário:</b> ${esc(p.nome||'—')}${p.documento?'<br>'+esc(p.documento):''}${p.endereco||p.cidade?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</div>
       <div><b>Frete:</b> ${FRETE[fr.tipo]||'Sem frete'}${fr.transportadora?'<br><b>Transportadora:</b> '+esc(fr.transportadora):''}${fr.placa?'<br><b>Placa:</b> '+esc(fr.placa):''}${fr.motorista?'<br><b>Motorista:</b> '+esc(fr.motorista):''}</div></div>
@@ -26,8 +34,7 @@ function romaneio(id){
     <div class="grid"><div><b>Peso na balança (saída):</b> ____________ kg</div><div><b>Peso na balança (chegada):</b> ____________ kg</div></div>
     ${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
     <div class="ass"><div>Expedição · 3STRUZA</div><div>Motorista${fr.motorista?' · '+esc(fr.motorista):''}</div><div>Recebido por · ${esc(p.nome||'cliente')}<br><span class="muted">data ___/___/_____</span></div></div></body></html>`;
-  const w=window.open('','_blank');if(!w){toast('Libere as janelas pop-up deste site para abrir o romaneio');return}
-  w.document.open();w.document.write(html);w.document.close();
+  verImpresso('Romaneio · Venda #'+o.numero,html);
 }
 function recibo(col,id){
   const o=byId(col,id);if(!o)return;const isC=col==='compras';const p=byId('parceiros',o.parceiroId)||{};const{tit}=linked(id);
@@ -41,7 +48,7 @@ function recibo(col,id){
     .tot{font-size:16px;font-weight:700}.ass{margin-top:60px;display:flex;gap:40px}.ass div{flex:1;border-top:1px solid #1d2330;padding-top:6px;text-align:center}
     @media print{.noprint{display:none}body{margin:12mm}}</style></head><body>
     <div class="noprint" style="margin-bottom:16px"><button onclick="print()" style="padding:8px 14px;font-size:14px">Imprimir ou salvar em PDF</button></div>
-    <div class="top"><div>${logo?`<img src="${logo}" style="height:34px">`:'<h1>3STRUZA</h1>'}<div class="muted">Comércio de PP reciclado</div></div>
+    <div class="top"><div>${logo?`<img src="${logo}" style="height:34px">`:'<h1>3STRUZA</h1>'}</div>
       <div style="text-align:right"><h1>${isC?'Comprovante de compra':'Recibo de venda'} #${o.numero}</h1><div class="muted">Data ${fd(o.data)}</div></div></div>
     <p><b>${isC?'Fornecedor':'Cliente'}:</b> ${esc(p.nome||'—')}${p.documento?' · '+esc(p.documento):''}${p.cidade?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</p>
     <table><thead><tr><th>Material</th><th>Embalagem</th><th class="r">Peso</th><th class="r">R$/kg</th><th class="r">Subtotal</th></tr></thead><tbody>${linhas}</tbody>
@@ -49,8 +56,7 @@ function recibo(col,id){
     ${o.frete?`<p><b>Frete:</b> ${FRETE[o.frete.tipo]}${o.frete.transportadora?' · '+esc(o.frete.transportadora):''}${o.frete.placa?' · placa '+esc(o.frete.placa):''}</p>`:''}
     <p><b>Pagamento:</b> ${pag}${(o.pagamentos||[]).length>1||o.pagamentos?.[0]?.meio==='cheque'?'<br>'+o.pagamentos.map(x=>esc(pgTxt(x,isC))+' '+brl(x.valor)).join('<br>'):''}</p>${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
     <div class="ass"><div>3STRUZA</div><div>${esc(p.nome||(isC?'Fornecedor':'Cliente'))}</div></div></body></html>`;
-  const w=window.open('','_blank');if(!w){toast('Libere as janelas pop-up deste site para abrir o recibo');return}
-  w.document.open();w.document.write(html);w.document.close();
+  verImpresso((isC?'Comprovante · Compra #':'Recibo · Venda #')+o.numero,html);
 }
 
 export {romaneio,recibo};

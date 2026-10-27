@@ -78,3 +78,14 @@ describe('edição de venda a prazo com parcelas recebidas',()=>{
     await expect(salvarModal()).rejects.toThrow(/Estorne-as/);
   });
 });
+
+describe('itens da venda',()=>{
+  beforeEach(()=>montar(base()));
+  it('não zera o preço digitado ao adicionar outro item',()=>{
+    formOp('vendas');
+    const preco=$('#itRows [data-k=precoKg]');preco.value='4,50';preco.dispatchEvent(new Event('input',{bubbles:true}));
+    $('#addIt').click();
+    const precos=[...document.querySelectorAll('#itRows [data-k=precoKg]')].map(i=>i.value);
+    expect(precos).toEqual(['4,5','4,5']);
+  });
+});
