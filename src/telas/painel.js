@@ -13,6 +13,8 @@ function vPainel(){
   const receberMes=ab.filter(x=>x.lado==='receber'&&x.vencimento.slice(0,7)===mes).reduce((a,x)=>a+num(x.valor),0);
   const atrasP=ab.filter(x=>x.lado==='pagar'&&x.vencimento<t);const atrasR=ab.filter(x=>x.lado==='receber'&&x.vencimento<t);
   const est=estoque();const kgTot=est.reduce((a,e)=>a+Math.max(0,e.kg),0);const valTot=est.reduce((a,e)=>a+Math.max(0,e.valor),0);
+  // valor em estoque por tipo de material, maiores primeiro
+  const valTipo=[...est.reduce((m,e)=>{if(e.kg>0){const t=m.get(e.tipo)||{kg:0,valor:0};t.kg+=e.kg;t.valor+=Math.max(0,e.valor);m.set(e.tipo,t)}return m},new Map())].sort((a,b)=>b[1].valor-a[1].valor);
   const vendMes=S.vendas.filter(v=>v.data.slice(0,7)===mes);const compMes=S.compras.filter(v=>v.data.slice(0,7)===mes);
   const kgV=vendMes.reduce((a,v)=>a+num(v.totalKg),0),kgC=compMes.reduce((a,v)=>a+num(v.totalKg),0);
   const vV=vendMes.reduce((a,v)=>a+num(v.total),0),vC=compMes.reduce((a,v)=>a+num(v.total),0);
@@ -58,7 +60,7 @@ function vPainel(){
   </div>
   <div class="grid kpis">
     <div class="kpi"><span>A pagar no mês</span>${ic('down','n')}<b>${brl(pagarMes)}</b><small>${atrasP.length?`<span class="neg">${atrasP.length} atrasado(s) · ${brl(atrasP.reduce((a,x)=>a+num(x.valor),0))}</span>`:'Nada atrasado'}</small></div>
-    <div class="kpi"><span>Estoque total</span>${ic('box','w')}<b>${fkg(kgTot)}</b><small>Custo estimado ${brl(valTot)}</small></div>
+    <div class="kpi"><span>Valor em estoque</span>${ic('box','w')}<b>${brl(valTot)}</b><small>${fkg(kgTot)}${kgTot?` · custo médio ${brl(valTot/kgTot)}/kg`:''}${valTipo.length?'<br>'+valTipo.slice(0,2).map(([t,v])=>`${esc(t)} ${fkg(v.kg)} · ${brl(v.valor)}`).join('<br>'):''}</small></div>
     <div class="kpi"><span>Vendas no mês</span>${ic('tag','p')}<b>${brl(vV)}</b><small>${fkg(kgV)} · ${vendMes.length} venda(s)${kgV?` · ${brl(vV/kgV)}/kg`:''}</small></div>
     <div class="kpi"><span>Compras no mês</span>${ic('cart')}<b>${brl(vC)}</b><small>${fkg(kgC)} · ${compMes.length} compra(s)${kgC?` · ${brl(vC/kgC)}/kg`:''}</small></div>
   </div>
