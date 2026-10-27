@@ -1,0 +1,25 @@
+/* sidebar */
+.side{background:var(--side);color:var(--side-fg);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.side .logo{padding:20px 20px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.side .logo .mark{width:46px;height:46px;border-radius:50%;background:var(--g-blue);display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 2px 8px rgba(11,65,158,.25)}
+.side .logo .mark img{width:28px;height:auto}
+.side .logo .nm{display:flex;flex-direction:column;gap:5px;min-width:0}
+.side .logo .nm img{width:128px;max-width:100%}
+.side .logo .lg-l{display:var(--logo-l)} .side .logo .lg-d{display:var(--logo-d)}
+.side .logo small{font-size:13px;color:var(--muted);white-space:nowrap}
+.nav-sep{height:1px;background:var(--line);margin:8px 4px}
+.nav{padding:14px 12px;display:flex;flex-direction:column;gap:3px}
+.nav-group{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:14px 12px 6px}
+.nav-group:first-child{padding-top:4px}
+.nav a{display:flex;align-items:center;gap:13px;padding:11px 14px;border-radius:11px;color:var(--side-fg);text-decoration:none;font-weight:500;font-size:15.5px;cursor:pointer}
+.nav a svg{color:var(--side-icon)}
+.nav a:hover{background:var(--surface-2)}
+.nav a.on{background:var(--side-active);color:var(--accent)}
+.nav a.on svg{color:var(--accent)}
+.nav svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nav .badge{margin-left:auto;background:#E5484D;color:#fff;font-size:11.5px;font-weight:700;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;border-radius:11px}
+.side .foot{margin-top:auto;border-top:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;gap:12px}
+.avatar{width:40px;height:40px;border-radius:10px;background:var(--g-blue);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.side .foot b{display:block;font-size:14.5px;color:var(--fg)}
+.side .foot small{font-size:12.5px;color:var(--muted)}
+.side .foot .chev{margin-left:auto;width:18px;height:18px;color:var(--muted);flex:none}
