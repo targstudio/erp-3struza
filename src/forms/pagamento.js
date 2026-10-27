@@ -8,7 +8,7 @@ function pgInit(o){const m0=MEIO[o.forma]?o.forma:'pix';
   const p=(o.pagamentos&&o.pagamentos.length?o.pagamentos:[{contaId:o.contaId||defaultConta(m0),valor:''}]).map(x=>({...x,meio:x.meio||m0,cheque:{titular:'proprio',...(x.cheque||{})},valor:x.valor===''?'':fnum(x.valor)}));
   if(p.length===1)p[0].valor='';return p}
 const pgBox=label=>`<div class="hint" style="font-weight:600">${label}</div><div id="pgRows" style="display:flex;flex-direction:column;gap:10px"></div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" id="addPg">+ Outra forma ou conta</button><span class="hint" id="pgInfo"></span></div>`;
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" id="addPg">+ Dividir em outra forma ou caixa</button><span class="hint" id="pgInfo"></span></div>`;
 const chqTit=(isC,t)=>t==='terceiro'?'De terceiro':(isC?'Da 3STRUZA':'Do próprio cliente');
 function pgMount(pags,alvo,isC){
   const info=()=>{const a=alvo();const vazios=pags.filter(x=>x.valor==='').length;const soma=pags.reduce((s,x)=>s+num(x.valor),0);
@@ -17,7 +17,7 @@ function pgMount(pags,alvo,isC){
   const draw=()=>{$('#pgRows').innerHTML=pags.map((x,i)=>{const ch=x.cheque;return `<div data-pg="${i}" style="display:flex;flex-direction:column;gap:8px;${i?'border-top:1px dashed var(--line);padding-top:10px':''}">
     <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:end">
       <label class="fl">${i?'':'Forma'}<select data-pk="meio" aria-label="Forma">${Object.entries(MEIO).map(([k,l])=>`<option value="${k}" ${x.meio===k?'selected':''}>${l}</option>`).join('')}</select></label>
-      <label class="fl">${i?'':'Conta'}<select data-pk="contaId" aria-label="Conta">${contaOpts(x.contaId)}</select></label>
+      <label class="fl">${i?'':'Caixa / conta'}<select data-pk="contaId" aria-label="Conta">${contaOpts(x.contaId)}</select></label>
       <label class="fl">${i?'':'Valor (R$)'}<input data-pk="valor" data-pgauto inputmode="decimal" value="${esc(x.valor)}" aria-label="Valor"></label>
       <button style="margin-bottom:4px" type="button" class="btn sm danger" data-pgrm="${i}" ${pags.length<2?'disabled':''} aria-label="Remover">×</button></div>
     ${x.meio==='cheque'?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">

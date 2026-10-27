@@ -56,7 +56,7 @@ function formBaixa(id){
   modal(pagar?'Registrar pagamento':'Registrar recebimento',`
     <div class="box"><div><b>${esc(t.descricao)}</b>${t.totalParcelas>1?` <span class="muted">${t.parcela}/${t.totalParcelas}</span>`:''}</div><div class="muted">Vencimento ${fd(t.vencimento)} · ${brl(t.valor)}${t.parceiroId?' · '+esc(parcNome(t.parceiroId)):''}</div></div>
     <div class="row"><label class="fl">Data do ${pagar?'pagamento':'recebimento'}<input type="date" name="data" id="bData" value="${today()}"></label><label class="fl">Valor ${pagar?'pago':'recebido'} (R$)<input name="valor" id="bValor" inputmode="decimal" value="${fnum(t.valor)}"></label></div>
-    <div class="box">${pgBox(pagar?'Como foi pago (sai de qual conta)':'Como recebeu (entra em qual conta)')}</div>
+    <div class="box">${pgBox(pagar?'Forma de pagamento e de qual caixa saiu':'Forma de recebimento e para qual caixa vai')}</div>
     <div class="box" id="bParcBox" hidden><div class="opts" style="flex-direction:column;align-items:stretch">
       <label><input type="radio" name="parcial" value="sim" checked><span id="bParcTxt">Pagamento parcial</span></label>
       <label><input type="radio" name="parcial" value="nao">Quitar com desconto (o restante não será cobrado)</label></div></div>

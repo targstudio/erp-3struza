@@ -2,6 +2,7 @@ import {S,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl} from '../estado.js';
 import {pillT} from '../regras.js';
 import {histBtn} from './historico.js';
+import {pgCurto} from '../forms/pagamento.js';
 import {brl,esc,fd,mLabel,mShort,num,today} from '../util.js';
 
 /* ---------- Contas a pagar / receber ---------- */
@@ -32,7 +33,7 @@ function vTitulos(lado){
     <div class="card-h"><div class="toolbar">${monthCtl()}<div class="seg">${[['todos','Todos'],['aberto','Em aberto'],['pago',lado==='pagar'?'Pagos':'Recebidos'],['atrasado','Atrasados']].map(([k,l])=>`<button data-act="filtroT" data-v="${k}" class="${UI.filtroT===k?'on':''}">${l}</button>`).join('')}</div></div>
       <div class="sp"><input class="search" id="busca" placeholder="Buscar…" value="${esc(UI.busca)}"></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Vencimento</th><th>Descrição</th><th>${lado==='pagar'?'Fornecedor / favorecido':'Cliente / pagador'}</th><th>Categoria</th><th class="r">Valor</th><th>Situação</th><th></th></tr></thead><tbody>
-    ${rows.map(x=>`<tr><td class="num">${fd(x.vencimento)}</td><td>${esc(x.descricao)} ${modoPill(x)} ${lado==='pagar'?`<span class="pill p-grey">${x.natureza==='fixa'?'Fixa':'Variável'}</span>`:''}${x.pago?`<div class="muted" style="font-size:12.5px">${lado==='pagar'?'Pago':'Recebido'} em ${fd(x.pagoEm)} · ${esc(contaNome(x.contaId))}</div>`:''}</td>
+    ${rows.map(x=>`<tr><td class="num">${fd(x.vencimento)}</td><td>${esc(x.descricao)} ${modoPill(x)} ${lado==='pagar'?`<span class="pill p-grey">${x.natureza==='fixa'?'Fixa':'Variável'}</span>`:''}${x.pago?`<div class="muted" style="font-size:12.5px">${lado==='pagar'?'Pago':'Recebido'} em ${fd(x.pagoEm)} · ${(x.pagamentos||[]).length?x.pagamentos.map(p=>`${esc(pgCurto(p,lado==='pagar'))} · ${esc(contaNome(p.contaId))}${x.pagamentos.length>1?' '+brl(p.valor):''}`).join('<br>'):esc(contaNome(x.contaId))}</div>`:''}</td>
       <td>${x.parceiroId?esc(parcNome(x.parceiroId)):'<span class="muted">—</span>'}</td><td class="muted">${esc(x.categoria||'')}</td><td class="r">${brl(x.valor)}</td><td>${pillT(x)}</td>
       <td class="acts">${x.pago?`<button class="btn sm" data-act="estornar" data-id="${x.id}">Estornar</button>`:`<button class="btn sm pri" data-act="baixar" data-id="${x.id}">${verbo}</button> <button class="btn sm" data-act="editTitulo" data-id="${x.id}">Editar</button>`} <button class="btn sm danger" data-act="delTitulo" data-id="${x.id}">Excluir</button> ${histBtn('titulos',x.id)}</td></tr>`).join('')||`<tr><td colspan="7"><div class="empty"><b>Nada por aqui</b>${UI.filtroT==='atrasado'?'Nenhuma conta atrasada.':'Nenhuma conta com vencimento em '+mLabel(mes)+'.'}</div></td></tr>`}
     </tbody>${rows.length?`<tfoot><tr><td colspan="4">${rows.length} lançamento(s)</td><td class="r">${brl(rows.reduce((a,x)=>a+num(x.valor),0))}</td><td colspan="2"></td></tr></tfoot>`:''}</table></div>
