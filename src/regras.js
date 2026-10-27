@@ -1,6 +1,6 @@
 import {S,byId,del,put} from './dados.js';
 import {MODE,QUEUE,SB} from './sync.js';
-import {addMonths,fnum,nid,num,r2,today} from './util.js';
+import {addDays,addMonths,fnum,nid,num,r2,today} from './util.js';
 
 /* ===================== regras de negócio ===================== */
 function saldoConta(id){
@@ -75,6 +75,20 @@ async function renovar(){if(renovando)return;renovando=true;
         const nv={...b,id:g+'-'+k,parcela:k,vencimento:addMonths(prim.vencimento,k-prim.parcela),valor:num(ult.valorOriginal)||num(ult.valor),pago:false,criadoEm:Date.now()};
         if(!byId('titulos',nv.id))await put('titulos',nv);ult=nv}}}
   finally{renovando=false}}
+// caixa previsto: saldo de hoje + contas a receber − contas a pagar em aberto, dia a dia.
+// Contas atrasadas entram no dia de hoje (ainda podem ser pagas/recebidas).
+function caixaPrevisto(dias=30,hoje=today()){
+  const fim=addDays(hoje,dias);const porDia=new Map();
+  for(const t of S.titulos){if(t.pago)continue;const d=t.vencimento<hoje?hoje:t.vencimento;if(d>fim)continue;
+    const x=porDia.get(d)||{ent:0,sai:0,atras:0};const v=num(t.valor);if(t.lado==='receber')x.ent+=v;else x.sai+=v;if(t.vencimento<hoje)x.atras++;porDia.set(d,x)}
+  let saldo=saldoTotal();const out=[];
+  for(let i=0;i<=dias;i++){const d=addDays(hoje,i);const x=porDia.get(d)||{ent:0,sai:0,atras:0};saldo+=x.ent-x.sai;out.push({data:d,ent:r2(x.ent),sai:r2(x.sai),atras:x.atras,saldo:r2(saldo)})}
+  return out}
+// vendas dos últimos meses: total em R$, kg e quantidade de vendas
+function vendasPorMes(meses,ate=today().slice(0,7)){const out=[];
+  for(let i=meses-1;i>=0;i--){const m=addMonths(ate+'-01',-i).slice(0,7);const vs=S.vendas.filter(v=>(v.data||'').slice(0,7)===m);
+    out.push({mes:m,total:r2(vs.reduce((a,v)=>a+num(v.total),0)),kg:vs.reduce((a,v)=>a+num(v.totalKg),0),qtd:vs.length})}
+  return out}
 function genTitulos(base,modo,n,valor,venc){
   const grupo=nid();const out=[];
   if(modo==='unica'){out.push({...base,id:nid(),modo,grupo,parcela:1,totalParcelas:1,vencimento:venc,valor:r2(valor),pago:false})}
@@ -83,4 +97,4 @@ function genTitulos(base,modo,n,valor,venc){
   return out;
 }
 
-export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,linked,removeLinked,renovando,renovar,genTitulos};
+export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};
