@@ -2,7 +2,7 @@ import {byId,contaNome,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
 import {pgTxt} from '../forms/pagamento.js';
 import {modal} from '../modal.js';
-import {EMB,FORMA,FRETE,TIPOCONTA} from '../regras.js';
+import {EMB,FORMA,FRETE,TIPOCONTA,codVenda} from '../regras.js';
 import {render} from '../render.js';
 import {MODE,SB} from '../sync.js';
 import {brl,esc,fd,fkg} from '../util.js';
@@ -22,7 +22,7 @@ async function loadHist(reset){
   HIST.err='';HIST.rows.push(...data);HIST.more=data.length===100;render();
 }
 const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',frete:'Frete',impostoPct:'Impostos (%)',margemAlvo:'Margem desejada (%)',totalMat:'Total do material',pagamentos:'Contas do pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag'};
-const SKIP=new Set(['criadoEm','grupo','ref','movimentoId','exemplo','totalParcelas']);
+const SKIP=new Set(['criadoEm','seqDia','grupo','ref','movimentoId','exemplo','totalParcelas']);
 const MONEY=new Set(['saldoInicial','valor','valorPago','total','custoKg','precoKg']);
 function fmtVal(k,v){
   if(v===undefined||v===null||v==='')return '—';
@@ -55,7 +55,7 @@ function descReg(col,d){
     case 'parceiros':return d.nome||'';
     case 'movimentos':return `${d.tipo==='entrada'?'Entrada':d.tipo==='saida'?'Saída':'Transferência'} de ${brl(d.valor)} · ${d.descricao||''}`;
     case 'compras':return `Compra #${d.numero} · ${parcNome(d.parceiroId)} · ${brl(d.total)}`;
-    case 'vendas':return `Venda #${d.numero} · ${parcNome(d.parceiroId)} · ${brl(d.total)}`;
+    case 'vendas':return `Venda ${codVenda(d)} · ${parcNome(d.parceiroId)} · ${brl(d.total)}`;
     case 'titulos':return `${d.lado==='pagar'?'Conta a pagar':'Conta a receber'} “${d.descricao}”${d.totalParcelas>1?` ${d.parcela}/${d.totalParcelas}`:''}${d.renova?' (mensal)':''} · ${brl(d.valor)} · venc. ${fd(d.vencimento)}`;
     case 'ajustes':return `${d.sentido==='saida'?'Saída':'Entrada'} de ${fkg(d.kg)} de ${d.tipo} ${d.cor}${d.motivo?' · '+d.motivo:''}`;
     case 'config':return 'Configurações gerais';

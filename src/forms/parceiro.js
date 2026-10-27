@@ -1,6 +1,6 @@
 import {S,byId,put} from '../dados.js';
 import {fv,modal,toast} from '../modal.js';
-import {FORMA} from '../regras.js';
+import {FORMA,codVenda} from '../regras.js';
 import {brl,esc,fd,fkg,nid,num} from '../util.js';
 
 /* --- parceiro --- */
@@ -28,7 +28,7 @@ function verParc(id){
     <div class="kpi"><span>Vendido a ele</span><b>${brl(v.reduce((a,x)=>a+num(x.total),0))}</b><small>${fkg(v.reduce((a,x)=>a+num(x.totalKg),0))}</small></div>
     <div class="kpi"><span>Em aberto</span><b>${brl(tit.reduce((a,t)=>a+(t.lado==='receber'?1:-1)*num(t.valor),0))}</b><small>positivo = ele me deve</small></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Operação</th><th>Material</th><th class="r">Peso</th><th class="r">Total</th></tr></thead><tbody>
-    ${hist.map(x=>`<tr><td class="num">${fd(x.data)}</td><td><span class="pill ${x.k==='Compra'?'p-info':'p-ok'}">${x.k} #${x.numero}</span> <span class="muted">${FORMA[x.forma]}</span></td><td>${(x.itens||[]).map(i=>esc(i.tipo+' '+i.cor)).join(', ')}</td><td class="r">${fkg(x.totalKg)}</td><td class="r">${brl(x.total)}</td></tr>`).join('')||'<tr><td colspan="5"><div class="empty">Nenhuma compra ou venda com este cadastro.</div></td></tr>'}
+    ${hist.map(x=>`<tr><td class="num">${fd(x.data)}</td><td><span class="pill ${x.k==='Compra'?'p-info':'p-ok'}">${x.k==='Venda'?'Venda '+codVenda(x):x.k+' #'+x.numero}</span> <span class="muted">${FORMA[x.forma]}</span></td><td>${(x.itens||[]).map(i=>esc(i.tipo+' '+i.cor)).join(', ')}</td><td class="r">${fkg(x.totalKg)}</td><td class="r">${brl(x.total)}</td></tr>`).join('')||'<tr><td colspan="5"><div class="empty">Nenhuma compra ou venda com este cadastro.</div></td></tr>'}
     </tbody></table></div>`,{wide:true,submit:'',extra:`<button type="button" class="btn" data-act="editParc" data-id="${id}">Editar cadastro</button>`});
 }
 

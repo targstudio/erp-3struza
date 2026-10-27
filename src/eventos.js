@@ -14,6 +14,7 @@ import {baixarCSV} from './telas/caixa.js';
 import {saveCfg} from './telas/configuracoes.js';
 import {HIST,descReg,loadHist,verHist} from './telas/historico.js';
 import {csvRel,csvTit} from './telas/relatorios.js';
+import {rotOp} from './regras.js';
 import {addMonths,brl,esc,num} from './util.js';
 
 /* ===================== eventos ===================== */
@@ -29,7 +30,7 @@ document.addEventListener('click',async e=>{
     case 'delMov':{const m=byId('movimentos',id);
       if(m.ref){const src=m.ref.col==='titulos'?byId('titulos',m.ref.id):byId(m.ref.col,m.ref.id);
         if(m.ref.col==='titulos'&&src){await estornar(src.id);break}
-        if(src){await ask('Lançamento vinculado',`Este lançamento veio da ${m.ref.col==='compras'?'compra':'venda'} #${src.numero}. Para removê-lo, edite ou exclua a ${m.ref.col==='compras'?'compra':'venda'}.`,[]);break}}
+        if(src){await ask('Lançamento vinculado',`Este lançamento veio da ${rotOp(m.ref.col,src).toLowerCase()}. Para removê-lo, edite ou exclua a ${m.ref.col==='compras'?'compra':'venda'}.`,[]);break}}
       if(await ask('Excluir movimentação',`Excluir <b>${esc(m.descricao)}</b> de ${brl(m.valor)}?`,[{label:'Excluir',cls:'danger',v:true}])){await del('movimentos',id);toast('Excluído')}break}
     case 'filtroConta':UI.filtroConta=UI.filtroConta===id?'':id;render();break;
     case 'per':UI.per=b.dataset.v;render();break;

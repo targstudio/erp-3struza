@@ -45,8 +45,9 @@ describe('busca rápida',()=>{
   });
   it('ignora acentos e maiúsculas',()=>expect(busca('parana')).toContain('Injetora Paraná'));
   it('acha venda pelo número, cliente ou material',()=>{
-    expect(busca('#12')).toContain('Venda #12 · Injetora Paraná');
-    expect(busca('preto')).toContain('Venda #12 · Injetora Paraná');
+    expect(busca('#12')).toContain('Venda 20261002/001 · Injetora Paraná');
+    expect(busca('20261002/001')).toContain('Venda 20261002/001 · Injetora Paraná');
+    expect(busca('preto')).toContain('Venda 20261002/001 · Injetora Paraná');
   });
   it('acha cadastro pelo documento e conta pela categoria',()=>{
     expect(busca('0001-90')).toEqual(['Recicla Sul Ltda']);

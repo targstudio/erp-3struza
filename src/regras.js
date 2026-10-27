@@ -58,6 +58,17 @@ async function proximoNumero(col){let mx=Math.max(0,...S[col].map(x=>num(x.numer
     if(!r.error&&r.data&&r.data[0])mx=Math.max(mx,num(r.data[0].n))}catch(e){}}
   for(const op of QUEUE)if(op.col===col&&op.t==='put')mx=Math.max(mx,num(op.data?.numero));
   return mx+1}
+// número da venda: data invertida + sequência do dia (ex.: 20261027/001)
+// vendas antigas sem seqDia recebem a posição no dia pela ordem do número
+function seqDia(v){if(num(v.seqDia))return num(v.seqDia);
+  const usados=new Set(S.vendas.filter(x=>x.data===v.data&&num(x.seqDia)).map(x=>num(x.seqDia)));
+  const antigas=S.vendas.filter(x=>x.data===v.data&&!num(x.seqDia)).sort((a,b)=>num(a.numero)-num(b.numero));
+  let n=0;for(const x of antigas){n++;while(usados.has(n))n++;if(x.id===v.id)return n}
+  n++;while(usados.has(n))n++;return n}
+const proximoSeqDia=(data,ignoreId)=>Math.max(0,...S.vendas.filter(x=>x.data===data&&x.id!==ignoreId).map(seqDia))+1;
+const codVenda=v=>v?String(v.data||'').replace(/-/g,'')+'/'+String(seqDia(v)).padStart(3,'0'):'';
+// rótulo de compra/venda: venda usa o código com data, compra o número
+const rotOp=(col,o)=>col==='vendas'?'Venda '+codVenda(o):'Compra #'+(o?.numero??'');
 function linked(refId){
   const tit=S.titulos.filter(t=>t.ref?.id===refId);
   const tids=new Set(tit.map(t=>t.id));
@@ -97,4 +108,4 @@ function genTitulos(base,modo,n,valor,venc){
   return out;
 }
 
-export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};
+export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};

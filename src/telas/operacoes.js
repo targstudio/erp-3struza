@@ -1,7 +1,7 @@
 import {S,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl} from '../estado.js';
 import {pgResumo} from '../forms/pagamento.js';
-import {EMB,FORMA,custosMedios,linked,margemVenda} from '../regras.js';
+import {EMB,FORMA,custosMedios,linked,margemVenda,codVenda} from '../regras.js';
 import {histBtn} from './historico.js';
 import {brl,esc,fd,fkg,fnum,mLabel,mShort,num,swatch} from '../util.js';
 
@@ -29,7 +29,7 @@ function vOps(col){
   <div class="card">
     <div class="card-h"><div class="toolbar">${monthCtl()}</div><div class="sp"><input class="search" id="busca" placeholder="Buscar ${isC?'fornecedor':'cliente'} ou material…" value="${esc(UI.busca)}"></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Data</th><th>${isC?'Fornecedor':'Cliente'}</th><th>Material</th><th class="r">Peso</th><th class="r">R$/kg</th><th class="r">Total</th>${isC?'':'<th class="r">Lucro</th>'}<th>Pagamento</th><th></th></tr></thead><tbody>
-    ${rows.map(x=>{const st=finStatus(x);return `<tr><td class="num muted">#${x.numero}</td><td class="num">${fd(x.data)}</td><td>${esc(parcNome(x.parceiroId))}</td>
+    ${rows.map(x=>{const st=finStatus(x);return `<tr><td class="num muted" style="white-space:nowrap">${isC?'#'+x.numero:codVenda(x)}</td><td class="num">${fd(x.data)}</td><td>${esc(parcNome(x.parceiroId))}</td>
       <td>${(x.itens||[]).map(i=>`<div style="white-space:nowrap">${swatch(i.cor)}${esc(i.tipo)} ${esc(i.cor)} <span class="muted">· ${i.embalagem==='granel'?'granel':fnum(i.qtd,0)+' '+EMB[i.embalagem].toLowerCase()+(num(i.qtd)>1?'s':'')+' de '+fnum(i.pesoUn,0)+' kg'}</span></div>`).join('')}</td>
       <td class="r">${fkg(x.totalKg)}</td><td class="r">${x.totalKg?brl(x.total/x.totalKg):'—'}</td><td class="r"><b>${brl(x.total)}</b></td>${isC?'':(m=>`<td class="r ${m.margem<0?'neg':''}" title="Material ${brl(m.custoMat)}${m.frete?' · frete CIF '+brl(m.frete):''}${m.imposto?' · impostos '+brl(m.imposto):''}${m.semCusto?' · algum material sem custo cadastrado':''}">${brl(m.margem)}${m.semCusto?' <span class="muted">*</span>':''}<div class="muted" style="font-size:12px">${num(x.total)?fnum(m.margem/num(x.total)*100,1)+'%':''}</div></td>`)(mg.get(x.id))}
       <td><div>${FORMA[x.forma]}${x.forma==='credito'?` · ${x.parcelas}x`:''}</div>${st}</td>

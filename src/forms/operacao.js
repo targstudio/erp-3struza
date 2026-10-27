@@ -2,7 +2,7 @@ import {S,byId,cfg,del,parcNome,put} from '../dados.js';
 import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
 import {parcFields} from './parceiro.js';
 import {ask,contaOpts,defaultConta,fv,modal,opt,toast} from '../modal.js';
-import {AVISTA,EMB,FORMA,FRETE,MEIO,custosMedios,dispMat,faltaEstoque,genTitulos,linked,margemVenda,proximoNumero,removeLinked,ultImposto} from '../regras.js';
+import {AVISTA,EMB,FORMA,FRETE,MEIO,custosMedios,dispMat,faltaEstoque,genTitulos,linked,margemVenda,proximoNumero,removeLinked,ultImposto,seqDia,proximoSeqDia,codVenda,rotOp} from '../regras.js';
 import {$,addDays,addMonths,brl,esc,fd,fkg,fnum,nid,num,r2,today} from '../util.js';
 
 /* --- compra / venda --- */
@@ -14,7 +14,7 @@ function formOp(col,id){
   const hasPaid=id&&linked(id).tit.some(t=>t.pago);
   // pagamento à vista (ou entrada) pode sair/entrar de várias contas
   const pags=pgInit(o);const forma0=o.forma==='misto'?pags[0].meio:o.forma;
-  const form=modal((id?'Editar ':'Nova ')+(isC?'compra':'venda')+(id?' #'+o.numero:''),`
+  const form=modal((id?'Editar ':'Nova ')+(isC?'compra':'venda')+(id?' '+(isC?'#'+o.numero:codVenda(o)):''),`
     ${hasPaid?`<div class="banner">Esta operação tem parcelas já ${isC?'pagas':'recebidas'}. Elas são mantidas ao salvar; se mudar o total ou o número de parcelas, só as parcelas em aberto são recalculadas.</div>`:''}
     <div class="row"><label class="fl">Data<input type="date" name="data" id="oData" value="${o.data}"></label>
       <label class="fl">${isC?'Fornecedor':'Cliente'}<select name="parceiroId" id="oParc"><option value="">Selecione…</option>${parcs.map(p=>`<option value="${p.id}" ${p.id===o.parceiroId?'selected':''}>${esc(p.nome)}${(isC?p.fornecedor:p.cliente)?'':(isC?' (cliente)':' (fornecedor)')}</option>`).join('')}<option value="__novo">+ Cadastrar novo…</option></select></label></div>
@@ -137,10 +137,12 @@ function formOp(col,id){
     if(novoParc)await put('parceiros',novoParc);
     else{const p=byId('parceiros',parceiroId);if(p&&!(isC?p.fornecedor:p.cliente))await put('parceiros',{...p,[isC?'fornecedor':'cliente']:true})}
     const numero=id?o.numero:await proximoNumero(col);
-    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,frete,impostoPct,margemAlvo}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+    // venda: sequência do dia; muda só se a data mudar
+    const seq=isC?undefined:(id&&o.data===data?seqDia(o):proximoSeqDia(data,opId));
+    const rec={...o,id:opId,numero,...(isC?{}:{seqDia:seq}),data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,frete,impostoPct,margemAlvo}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
     await put(col,rec);
     const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(novoParc?.nome||'');
-    const desc=`${isC?'Compra':'Venda'} #${numero} · ${pn}`;
+    const desc=`${rotOp(col,rec)} · ${pn}`;
     const novasParcelas=(n,valor,venc,ini,tot,grupo)=>genTitulos({lado,descricao:desc,parceiroId,categoria,natureza:isC?'variavel':'',ref:{col,id:opId},criadoEm:Date.now()},'parcelada',n,valor,venc).map((x,i)=>({...x,parcela:ini+i,totalParcelas:tot,grupo:grupo||x.grupo}));
     // parcelas
     if(plano==='manter'){for(const t of lk.tit)if(t.descricao!==desc||t.parceiroId!==parceiroId)await put('titulos',{...t,descricao:desc,parceiroId})}
@@ -156,18 +158,18 @@ function formOp(col,id){
     const proprios=S.movimentos.filter(m=>m.ref?.col===col&&m.ref.id===opId&&!m.ref.frete);
     // frete CIF pago por nós: uma saída no caixa ligada à venda
     if(!isC){const fm=S.movimentos.filter(m=>m.ref?.col===col&&m.ref.id===opId&&m.ref.frete);
-      if(frete?.tipo==='cif'&&frete.valor>0&&frete.contaId){await put('movimentos',{...(fm[0]||{id:nid(),criadoEm:Date.now()}),tipo:'saida',data,valor:frete.valor,contaId:frete.contaId,descricao:`Frete CIF · Venda #${numero} · ${pn}${frete.transportadora?' · '+frete.transportadora:''}`,categoria:'Frete de venda',parceiroId,ref:{col,id:opId,frete:true}});for(const m of fm.slice(1))await del('movimentos',m.id)}
+      if(frete?.tipo==='cif'&&frete.valor>0&&frete.contaId){await put('movimentos',{...(fm[0]||{id:nid(),criadoEm:Date.now()}),tipo:'saida',data,valor:frete.valor,contaId:frete.contaId,descricao:`Frete CIF · ${rotOp(col,rec)} · ${pn}${frete.transportadora?' · '+frete.transportadora:''}`,categoria:'Frete de venda',parceiroId,ref:{col,id:opId,frete:true}});for(const m of fm.slice(1))await del('movimentos',m.id)}
       else for(const m of fm)await del('movimentos',m.id)}
     // um lançamento por conta; reaproveita os existentes na edição
     for(const [i,pg] of pagamentos.entries()){const m0=proprios[i];
       await put('movimentos',{...(m0||{id:nid(),criadoEm:Date.now()}),tipo:isC?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:desc+` (${forma==='credito'?'entrada · ':''}${pgTxt(pg,isC)})`+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria,parceiroId,ref:{col,id:opId}})}
     for(const m of proprios.slice(pagamentos.length))await del('movimentos',m.id);
-    toast(`${isC?'Compra':'Venda'} #${numero} salva`);
+    toast(`${rotOp(col,rec)} salva`);
   }});
 }
 async function delOp(col,id){
   const o=byId(col,id);const{tit,mov}=linked(id);
-  const ok=await ask(`Excluir ${col==='compras'?'compra':'venda'} #${o.numero}`,`Excluir a ${col==='compras'?'compra':'venda'} de ${fd(o.data)} (${brl(o.total)})? O estoque será recalculado${mov.length?`, ${mov.length} lançamento(s) de caixa`:''}${tit.length?`${mov.length?' e':','} ${tit.length} parcela(s)`:''} também serão removidos.`,[{label:'Excluir',cls:'danger',v:true}]);
+  const ok=await ask(`Excluir ${rotOp(col,o).toLowerCase()}`,`Excluir a ${col==='compras'?'compra':'venda'} de ${fd(o.data)} (${brl(o.total)})? O estoque será recalculado${mov.length?`, ${mov.length} lançamento(s) de caixa`:''}${tit.length?`${mov.length?' e':','} ${tit.length} parcela(s)`:''} também serão removidos.`,[{label:'Excluir',cls:'danger',v:true}]);
   if(!ok)return;await removeLinked(id);await del(col,id);toast('Excluído');
 }
 

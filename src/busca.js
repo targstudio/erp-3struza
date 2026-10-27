@@ -8,7 +8,7 @@ import {formTitulo} from './forms/titulo.js';
 import {formAjuste} from './forms/ajuste.js';
 import {esconderDica} from './graficos.js';
 import {modalClose} from './modal.js';
-import {statusT,TIPOCONTA} from './regras.js';
+import {statusT,TIPOCONTA,codVenda} from './regras.js';
 import {ICON,brl,esc,fd} from './util.js';
 
 /* ===================== busca rápida (Ctrl+K) =====================
@@ -37,7 +37,7 @@ function itens(){
   for(const p of S.parceiros)out.push({grupo:'Clientes e fornecedores',txt:p.nome,sub:[p.cliente&&'Cliente',p.fornecedor&&'Fornecedor',p.documento,p.cidade].filter(Boolean).join(' · '),extra:[p.documento,p.telefone,p.email,p.cidade].join(' '),ic:'cadastros',fn:()=>verParc(p.id)});
   for(const col of ['vendas','compras']){const nome=col==='vendas'?'Venda':'Compra';
     for(const o of S[col].slice().sort((a,b)=>(b.numero||0)-(a.numero||0)))
-      out.push({grupo:col==='vendas'?'Vendas':'Compras',txt:`${nome} #${o.numero} · ${parcNome(o.parceiroId)}`,sub:`${fd(o.data)} · ${brl(o.total)}`,extra:`${o.numero} ${(o.itens||[]).map(i=>i.tipo+' '+i.cor).join(' ')} ${o.obs||''}`,ic:col,fn:()=>formOp(col,o.id)})}
+      out.push({grupo:col==='vendas'?'Vendas':'Compras',txt:`${col==='vendas'?'Venda '+codVenda(o):nome+' #'+o.numero} · ${parcNome(o.parceiroId)}`,sub:`${fd(o.data)} · ${brl(o.total)}`,extra:`#${o.numero} ${o.numero} ${col==='vendas'?codVenda(o):''} ${(o.itens||[]).map(i=>i.tipo+' '+i.cor).join(' ')} ${o.obs||''}`,ic:col,fn:()=>formOp(col,o.id)})}
   for(const t of S.titulos.filter(t=>!t.pago).sort((a,b)=>a.vencimento.localeCompare(b.vencimento))){
     const st=statusT(t);out.push({grupo:t.lado==='pagar'?'Contas a pagar':'Contas a receber',txt:t.descricao+(t.totalParcelas>1?` (${t.parcela}/${t.totalParcelas})`:''),
       sub:`${st==='atrasado'?'Atrasada · ':''}vence ${fd(t.vencimento)} · ${brl(t.valor)}${t.parceiroId?' · '+parcNome(t.parceiroId):''}`,extra:`${t.categoria||''} ${t.parceiroId?parcNome(t.parceiroId):''}`,ic:t.lado,fn:()=>formTitulo(null,t.id)})}

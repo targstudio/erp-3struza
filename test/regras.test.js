@@ -2,6 +2,7 @@ import {describe,it,expect,beforeEach} from 'vitest';
 import {saldoConta,saldoTotal,estoque,custosMedios,margemVenda,dispMat,faltaEstoque,genTitulos,statusT,linked} from '../src/regras.js';
 import {addMonths,today} from '../src/util.js';
 import {montar,conta,item} from './ajuda.js';
+import {S} from '../src/dados.js';
 
 describe('saldo das contas',()=>{
   beforeEach(()=>montar({
@@ -95,4 +96,15 @@ it('linked acha parcelas e lançamentos ligados a uma operação',()=>{
     movimentos:[{id:'m1',ref:{col:'vendas',id:'v1'}},{id:'m2',ref:{col:'titulos',id:'t1'}},{id:'m3',ref:{col:'vendas',id:'v2'}}]});
   const {tit,mov}=linked('v1');
   expect(tit.map(t=>t.id)).toEqual(['t1']);expect(mov.map(m=>m.id).sort()).toEqual(['m1','m2']);
+});
+
+describe('código da venda (data invertida / sequência do dia)',()=>{
+  it('numera as vendas antigas pela ordem do dia e continua a sequência',async()=>{
+    const {codVenda,proximoSeqDia}=await import('../src/regras.js');
+    montar({vendas:[{id:'a',numero:5,data:'2026-10-27'},{id:'b',numero:9,data:'2026-10-27'},{id:'c',numero:7,data:'2026-10-26'},{id:'d',numero:10,data:'2026-10-27',seqDia:4}]});
+    const v=id=>S.vendas.find(x=>x.id===id);
+    expect([codVenda(v('a')),codVenda(v('b')),codVenda(v('c')),codVenda(v('d'))]).toEqual(['20261027/001','20261027/002','20261026/001','20261027/004']);
+    expect(proximoSeqDia('2026-10-27')).toBe(5);
+    expect(proximoSeqDia('2026-10-28')).toBe(1);
+  });
 });

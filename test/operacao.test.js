@@ -89,3 +89,17 @@ describe('itens da venda',()=>{
     expect(precos).toEqual(['4,5','4,5']);
   });
 });
+
+describe('código da venda',()=>{
+  beforeEach(()=>montar({...base(),vendas:[
+    {id:'v1',numero:7,data:'2026-10-20',parceiroId:'cli',itens:[item('PP Moído','Preto',100,5)],total:500,forma:'pix',contaId:'banco',pagamentos:[{meio:'pix',contaId:'banco',valor:500}]},
+    {id:'v2',numero:8,data:'2026-10-21',parceiroId:'cli',itens:[item('PP Moído','Preto',100,5)],total:500,forma:'pix',contaId:'banco',pagamentos:[{meio:'pix',contaId:'banco',valor:500}]}]}));
+  it('guarda a sequência do dia e recalcula quando a data muda',async()=>{
+    formOp('vendas','v1');await salvarModal();
+    expect(S.vendas.find(v=>v.id==='v1').seqDia).toBe(1);
+    formOp('vendas','v1');campo('data','2026-10-21');await salvarModal();
+    const v1=S.vendas.find(v=>v.id==='v1');
+    expect(v1.seqDia).toBe(2);
+    expect(daVenda('v1')[0].descricao).toMatch(/^Venda 20261021\/002 · Cliente X/);
+  });
+});

@@ -1,6 +1,6 @@
 import {S,byId,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl,perCtl,periodo} from '../estado.js';
-import {TIPOCONTA,saldoConta,saldoTotal} from '../regras.js';
+import {TIPOCONTA,saldoConta,saldoTotal,codVenda} from '../regras.js';
 import {needSetup} from '../render.js';
 import {histBtn} from './historico.js';
 import {brl,esc,fd,fnum,num,today} from '../util.js';
@@ -30,7 +30,7 @@ function vCaixa(){
   const grupos=['banco','gaveta','credito'];
   const origem=m=>{if(!m.ref)return'';const src=m.ref.col==='titulos'?byId('titulos',m.ref.id):byId(m.ref.col,m.ref.id);
     if(m.ref.col==='compras')return `<span class="pill p-grey">Compra #${src?.numero??''}</span>`;
-    if(m.ref.col==='vendas')return `<span class="pill p-grey">Venda #${src?.numero??''}</span>`;
+    if(m.ref.col==='vendas')return `<span class="pill p-grey">Venda ${codVenda(src)}</span>`;
     if(m.ref.col==='titulos')return `<span class="pill p-grey">${src?.lado==='receber'?'Conta a receber':'Conta a pagar'}</span>`;return''};
   const tituloExtrato=fc?'Extrato de '+esc(contaNome(fc)):'Extrato geral · todos os caixas';
   return{sub:'Entradas, saídas e saldo por local',actions:`<button class="btn" data-act="transf">⇄ Transferência</button><button class="btn" data-act="mov" data-t="saida">− Saída</button><button class="btn pri" data-act="mov" data-t="entrada">+ Entrada</button>`,html:`

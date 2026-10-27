@@ -1,6 +1,6 @@
 import {S,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
-import {EMB,estoque} from '../regras.js';
+import {EMB,estoque,codVenda} from '../regras.js';
 import {brl,esc,fd,fkg,fnum,swatch} from '../util.js';
 
 /* ---------- Estoque ---------- */
@@ -17,7 +17,7 @@ function vEstoque(){
   // kardex
   const kx=[];
   S.compras.forEach(c=>(c.itens||[]).forEach(it=>kx.push({data:c.data,o:'Compra #'+c.numero,p:parcNome(c.parceiroId),it,s:1})));
-  S.vendas.forEach(c=>(c.itens||[]).forEach(it=>kx.push({data:c.data,o:'Venda #'+c.numero,p:parcNome(c.parceiroId),it,s:-1})));
+  S.vendas.forEach(c=>(c.itens||[]).forEach(it=>kx.push({data:c.data,o:'Venda '+codVenda(c),p:parcNome(c.parceiroId),it,s:-1})));
   S.ajustes.forEach(a=>kx.push({data:a.data,o:'Ajuste',p:a.motivo||'',it:a,s:a.sentido==='saida'?-1:1,aj:a.id}));
   kx.sort((a,b)=>b.data.localeCompare(a.data));
   const kxF=kx.filter(k=>(!UI.estTipo||k.it.tipo===UI.estTipo)&&(!UI.estCor||k.it.cor===UI.estCor));

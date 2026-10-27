@@ -2,7 +2,7 @@ import {S,byId,cfg,del,parcNome,put} from '../dados.js';
 import {formConta} from './conta.js';
 import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
 import {ask,fv,modal,opt,toast} from '../modal.js';
-import {genTitulos,renovar} from '../regras.js';
+import {genTitulos,renovar,rotOp} from '../regras.js';
 import {$,addMonths,brl,esc,fd,fnum,nid,num,r2,today} from '../util.js';
 
 /* --- título (conta a pagar / receber) --- */
@@ -90,7 +90,7 @@ async function estornar(id){
 }
 async function delTitulo(id){
   const t=byId('titulos',id);const futuros=S.titulos.filter(o=>o.grupo===t.grupo&&o.id!==t.id&&!o.pago&&o.vencimento>=t.vencimento);
-  if(t.ref){const src=byId(t.ref.col,t.ref.id);if(src){await ask('Lançamento vinculado',`Esta parcela foi gerada pela ${t.ref.col==='compras'?'compra':'venda'} #${src.numero}. Para alterar, edite ou exclua a ${t.ref.col==='compras'?'compra':'venda'}.`,[]);return}}
+  if(t.ref){const src=byId(t.ref.col,t.ref.id);if(src){await ask('Lançamento vinculado',`Esta parcela foi gerada pela ${rotOp(t.ref.col,src).toLowerCase()}. Para alterar, edite ou exclua a ${t.ref.col==='compras'?'compra':'venda'}.`,[]);return}}
   const btns=[{label:'Excluir só este',cls:'danger',v:'one'}];if(futuros.length)btns.push({label:`Este e os próximos ${futuros.length} em aberto${t.renova?' (para de renovar)':''}`,cls:'danger',v:'all'});
   const r=await ask('Excluir lançamento',`Excluir <b>${esc(t.descricao)}</b> com vencimento em ${fd(t.vencimento)}?${t.pago?' O pagamento/recebimento registrado no caixa também será removido.':''}`,btns);
   if(!r)return;
