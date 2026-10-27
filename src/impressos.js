@@ -27,7 +27,7 @@ function romaneio(id){
     <div class="top"><div>${logo?`<img src="${logo}" style="height:34px">`:'<h1>3STRUZA</h1>'}</div>
       <div style="text-align:right"><h1>Romaneio de carga</h1><div class="muted">Venda ${codVenda(o)} · ${fd(o.data)}</div></div></div>
     <div class="grid"><div><b>Destinatário:</b> ${esc(p.nome||'—')}${p.documento?'<br>'+esc(p.documento):''}${p.endereco||p.cidade?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</div>
-      <div><b>Frete:</b> ${FRETE[fr.tipo]||'Sem frete'}${fr.transportadora?'<br><b>Transportadora:</b> '+esc(fr.transportadora):''}${fr.placa?'<br><b>Placa:</b> '+esc(fr.placa):''}${fr.motorista?'<br><b>Motorista:</b> '+esc(fr.motorista):''}</div></div>
+      <div>${fr.tipo==='fob'?`<b>Frete:</b> FOB · por conta do cliente${num(fr.valor)?' · '+brl(fr.valor):''}`:''}${[fr.transportadora?'<b>Transportadora:</b> '+esc(fr.transportadora):'',fr.placa?'<b>Placa:</b> '+esc(fr.placa):'',fr.motorista?'<b>Motorista:</b> '+esc(fr.motorista):''].filter(Boolean).map(x=>(fr.tipo==='fob'?'<br>':'')+x).join(fr.tipo==='fob'?'':'<br>')}</div></div>
     <table><thead><tr><th>#</th><th>Material</th><th>Cor</th><th>Embalagem</th><th class="r">Qtd.</th><th class="r">Peso unit.</th><th class="r">Peso total</th><th>Conferido</th></tr></thead><tbody>
       ${o.itens.map((i,k)=>`<tr><td>${k+1}</td><td>${esc(i.tipo)}</td><td>${esc(i.cor)}</td><td>${EMB[i.embalagem]}</td><td class="r">${i.embalagem==='granel'?'—':fnum(i.qtd,0)}</td><td class="r">${i.embalagem==='granel'?'—':fkg(i.pesoUn)}</td><td class="r"><b>${fkg(i.kg)}</b></td><td></td></tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="4"><b>Total</b></td><td class="r"><b>${un?fnum(un,0):'—'}</b></td><td></td><td class="r"><b>${fkg(o.totalKg)}</b></td><td></td></tr></tfoot></table>
@@ -53,7 +53,7 @@ function recibo(col,id){
     <p><b>${isC?'Fornecedor':'Cliente'}:</b> ${esc(p.nome||'—')}${p.documento?' · '+esc(p.documento):''}${p.cidade?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</p>
     <table><thead><tr><th>Material</th><th>Embalagem</th><th class="r">Peso</th><th class="r">R$/kg</th><th class="r">Subtotal</th></tr></thead><tbody>${linhas}</tbody>
       <tfoot>${o.frete?.cobrar&&num(o.frete.valor)?`<tr><td colspan="4">Frete (CIF)</td><td class="r">${brl(o.frete.valor)}</td></tr>`:''}<tr><td colspan="2"><b>Total</b></td><td class="r"><b>${fkg(o.totalKg)}</b></td><td></td><td class="r tot">${brl(o.total)}</td></tr></tfoot></table>
-    ${o.frete?`<p><b>Frete:</b> ${FRETE[o.frete.tipo]}${o.frete.transportadora?' · '+esc(o.frete.transportadora):''}${o.frete.placa?' · placa '+esc(o.frete.placa):''}</p>`:''}
+    ${o.frete?.tipo==='fob'?`<p><b>Frete:</b> FOB · por conta do cliente${num(o.frete.valor)?' · '+brl(o.frete.valor):''}${o.frete.transportadora?' · '+esc(o.frete.transportadora):''}${o.frete.placa?' · placa '+esc(o.frete.placa):''}</p>`:''}
     <p><b>Pagamento:</b> ${pag}${(o.pagamentos||[]).length>1||o.pagamentos?.[0]?.meio==='cheque'?'<br>'+o.pagamentos.map(x=>esc(pgTxt(x,isC))+' '+brl(x.valor)).join('<br>'):''}</p>${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
     <div class="ass"><div>3STRUZA</div><div>${esc(p.nome||(isC?'Fornecedor':'Cliente'))}</div></div></body></html>`;
   verImpresso(isC?'Comprovante · Compra #'+o.numero:'Recibo · Venda '+codVenda(o),html);

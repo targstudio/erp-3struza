@@ -1,6 +1,7 @@
 import {describe,it,expect,beforeEach} from 'vitest';
 import {S} from '../src/dados.js';
 import {formOp} from '../src/forms/operacao.js';
+import {margemVenda} from '../src/regras.js';
 import {montar,conta,item,salvarModal} from './ajuda.js';
 
 const $=s=>document.querySelector(s);
@@ -21,7 +22,7 @@ describe('venda à vista com frete CIF',()=>{
 
   it('lança o frete numa saída separada e mantém o recebimento no lugar',async()=>{
     formOp('vendas','v1');
-    campo('freteTipo','cif');campo('freteValor','300');campo('freteConta','gaveta');campo('freteCobrar',false);
+    campo('freteTipo','cif');campo('freteValor','300');campo('freteConta','gaveta');
     await salvarModal();
     const movs=daVenda('v1');
     const frete=movs.filter(m=>m.ref.frete),proprios=movs.filter(m=>!m.ref.frete);
@@ -41,10 +42,11 @@ describe('venda à vista com frete CIF',()=>{
     expect(daVenda('v1')).toHaveLength(1);
   });
 
-  it('frete cobrado do cliente entra no total',async()=>{
-    formOp('vendas','v1');campo('freteTipo','cif');campo('freteValor','300');campo('freteCobrar',true);await salvarModal();
-    expect(S.vendas[0].total).toBe(5300);
-    expect(daVenda('v1').find(m=>!m.ref.frete).valor).toBe(5300);
+  it('frete CIF não entra no total do cliente, só no custo',async()=>{
+    formOp('vendas','v1');campo('freteTipo','cif');campo('freteValor','300');await salvarModal();
+    expect(S.vendas[0].total).toBe(5000);
+    expect(daVenda('v1').find(m=>!m.ref.frete).valor).toBe(5000);
+    expect(margemVenda(S.vendas[0]).frete).toBe(300);
   });
 });
 
