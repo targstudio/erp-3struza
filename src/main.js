@@ -3,8 +3,12 @@ import {TITLES,UI,closeSide,renderNav} from './estado.js';
 import {initStore,initSupa} from './sync.js';
 import {$} from './util.js';
 import './eventos.js';
+import {ligarDicas} from './graficos.js';
+import {ligarBusca} from './busca.js';
 
 /* ===================== boot ===================== */
+ligarDicas();
+ligarBusca();
 // menu lateral no celular
 $('#burger').onclick=()=>{$('#side').classList.add('open');$('#scrim').classList.add('on')};
 $('#scrim').onclick=closeSide;

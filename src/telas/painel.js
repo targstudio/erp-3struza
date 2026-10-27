@@ -1,6 +1,7 @@
 import {S,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
-import {TIPOCONTA,estoque,pillT,saldoConta,saldoTotal} from '../regras.js';
+import {TIPOCONTA,caixaPrevisto,estoque,pillT,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
+import {colunas,linha} from '../graficos.js';
 import {needSetup} from '../render.js';
 import {ICON,addDays,addMonths,brl,esc,fd,fdShort,fkg,fnum,mLabel,mShort,num,today} from '../util.js';
 
@@ -18,14 +19,18 @@ function vPainel(){
   // chart
   const months=[];for(let i=5;i>=0;i--)months.push(addMonths(mes+'-01',-i).slice(0,7));
   const data=months.map(m=>{let e=0,s=0;S.movimentos.forEach(x=>{if(x.data.slice(0,7)!==m)return;if(x.tipo==='entrada')e+=num(x.valor);if(x.tipo==='saida')s+=num(x.valor)});return{m,e,s}});
-  const max=Math.max(1,...data.map(d=>Math.max(d.e,d.s)));
-  const step=niceStep(max);const top=Math.ceil(max/step)*step;
-  const W=620,H=220,L=62,B=26,T=10,ch=H-B-T,cw=(W-L-10)/6;
-  let svg=`<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Entradas e saídas dos últimos 6 meses">`;
-  for(let v=0;v<=top+1e-9;v+=step){const y=T+ch-(v/top)*ch;svg+=`<line class="gl" x1="${L}" x2="${W-10}" y1="${y}" y2="${y}"/><text x="${L-8}" y="${y+4}" text-anchor="end">${v>=1000?fnum(v/1000,1)+' mil':fnum(v,0)}</text>`}
-  data.forEach((d,i)=>{const x=L+i*cw+cw*.18,bw=cw*.3;const he=(d.e/top)*ch,hs=(d.s/top)*ch;
-    svg+=`<rect x="${x}" y="${T+ch-he}" width="${bw}" height="${he}" rx="2" fill="var(--pos)"><title>Entradas ${brl(d.e)}</title></rect><rect x="${x+bw+3}" y="${T+ch-hs}" width="${bw}" height="${hs}" rx="2" fill="var(--neg)"><title>Saídas ${brl(d.s)}</title></rect><text x="${L+i*cw+cw/2}" y="${H-8}" text-anchor="middle">${mShort(d.m)}</text>`});
-  svg+='</svg>';
+  const svg=colunas({rotulo:'Entradas e saídas dos últimos 6 meses',series:[{cor:'var(--pos)'},{cor:'var(--neg)'}],
+    grupos:data.map(d=>({rot:mShort(d.m),valores:[d.e,d.s],tip:`<b>${mLabel(d.m)}</b>${tl('var(--pos)','Entradas',brl(d.e))}${tl('var(--neg)','Saídas',brl(d.s))}${tl('','Resultado',(d.e-d.s<0?'− ':'')+brl(Math.abs(d.e-d.s)))}`}))});
+  // caixa previsto para os próximos 30 dias
+  const prev=caixaPrevisto(30,t);const menor=prev.reduce((a,p)=>p.saldo<a.saldo?p:a,prev[0]);const fimPrev=prev[prev.length-1];
+  const svgPrev=linha({rotulo:'Saldo previsto para os próximos 30 dias',
+    pontos:prev.map((p,i)=>({v:p.saldo,tip:`<b>${i?fd(p.data):'Hoje'}</b>${tl('','Saldo previsto',brl(p.saldo))}${p.ent?tl('var(--pos)','Entra',brl(p.ent)):''}${p.sai?tl('var(--neg)','Sai',brl(p.sai)):''}${p.atras?`<div class="mu">inclui ${p.atras} conta(s) atrasada(s)</div>`:''}`})),
+    rotulos:[0,10,20,30].map(i=>({i,txt:i?fdShort(prev[i].data):'Hoje'}))});
+  // vendas dos últimos 6 meses
+  const vm=vendasPorMes(6,mes);
+  const vAtual=vm[vm.length-1],vMedia=vm.reduce((a,v)=>a+v.total,0)/vm.length;
+  const svgVendas=colunas({rotulo:'Vendas dos últimos 6 meses',largura:420,altura:230,series:[{cor:'var(--accent)'}],
+    grupos:vm.map(v=>({rot:mShort(v.mes),valores:[v.total],tip:`<b>${mLabel(v.mes)}</b>${tl('','Vendido',brl(v.total))}${tl('','Peso',fkg(v.kg))}${v.kg?tl('','Preço médio',brl(v.total/v.kg)+'/kg'):''}<div class="mu">${v.qtd} venda(s)</div>`}))});
   const prox=ab.filter(x=>x.vencimento<=addDays(t,15)).sort((a,b)=>a.vencimento.localeCompare(b.vencimento)).slice(0,8);
   const porTipo={};est.forEach(e=>{if(e.kg>0)porTipo[e.tipo]=(porTipo[e.tipo]||0)+e.kg});
   const maxT=Math.max(1,...Object.values(porTipo));
@@ -63,12 +68,19 @@ function vPainel(){
       <div class="list">${prox.length?prox.map(x=>`<div class="li"><div class="d">${fdShort(x.vencimento)}</div><div class="m"><div>${esc(x.descricao)}${x.totalParcelas>1?` <span class="muted">${x.parcela}/${x.totalParcelas}</span>`:''}</div><div class="muted" style="font-size:12.5px">${x.lado==='pagar'?'A pagar':'A receber'}${x.parceiroId?' · '+esc(parcNome(x.parceiroId)):''}</div></div><div class="v ${x.lado==='pagar'?'neg':'pos'}">${brl(x.valor)}</div>${pillT(x)}</div>`).join(''):'<div class="empty">Nenhum vencimento nos próximos 15 dias.</div>'}</div></div>
   </div>
   <div class="grid two">
+    <div class="card"><div class="card-h"><h2>Caixa previsto</h2><span class="sp muted" style="font-size:13px">próximos 30 dias</span></div><div class="card-b">${svgPrev}
+      <div class="prev-res"><div><span>Menor saldo</span><b class="${menor.saldo<0?'neg':''}">${brl(menor.saldo)}</b><small>${menor.data===t?'hoje':fd(menor.data)}</small></div><div><span>Em ${fdShort(fimPrev.data)}</span><b class="${fimPrev.saldo<0?'neg':''}">${brl(fimPrev.saldo)}</b><small>saldo de hoje + a receber − a pagar</small></div></div></div></div>
+    <div class="card"><div class="card-h"><h2>Vendas por mês</h2><div class="sp"><button class="link" data-go="vendas">Ver vendas</button></div></div><div class="card-b">${svgVendas}
+      <div class="prev-res"><div><span>Neste mês</span><b>${brl(vAtual.total)}</b><small>${fkg(vAtual.kg)} · ${vAtual.qtd} venda(s)</small></div><div><span>Média por mês</span><b>${brl(vMedia)}</b><small>últimos 6 meses</small></div></div></div></div>
+  </div>
+  <div class="grid two">
     <div class="card"><div class="card-h"><h2>Saldo por local</h2><div class="sp"><button class="link" data-go="caixa">Ver caixa</button></div></div>
       <div class="list">${S.contas.filter(c=>c.ativo!==false).map(c=>`<div class="li"><span class="dot d-${c.tipo}"></span><div class="m"><div>${esc(c.nome)}</div><div class="muted" style="font-size:12.5px">${TIPOCONTA[c.tipo]}${c.detalhe?' · '+esc(c.detalhe):''}</div></div><div class="v">${brl(saldoConta(c.id))}</div></div>`).join('')||'<div class="empty">Nenhuma conta cadastrada.</div>'}</div></div>
     <div class="card"><div class="card-h"><h2>Estoque por material</h2><div class="sp"><button class="link" data-go="estoque">Ver estoque</button></div></div>
       <div class="card-b" style="display:flex;flex-direction:column;gap:12px">${Object.keys(porTipo).length?Object.entries(porTipo).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div><div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px"><span>${esc(k)}</span><b class="num">${fkg(v)}</b></div><div class="bar"><i style="width:${v/maxT*100}%"></i></div></div>`).join(''):'<div class="empty">Sem material em estoque.</div>'}</div></div>
   </div>`};
 }
-function niceStep(max){const raw=max/4;const p=Math.pow(10,Math.floor(Math.log10(raw)));const n=raw/p;return(n<=1?1:n<=2?2:n<=5?5:10)*p}
+// linha do balão de dica: marcador de cor, nome e valor
+const tl=(cor,nome,valor)=>`<div class="tl"><span>${cor?`<i style="background:${cor}"></i>`:''}${nome}</span><b>${valor}</b></div>`;
 
-export {vPainel,niceStep};
+export {vPainel};
