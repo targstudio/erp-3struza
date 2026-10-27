@@ -42,6 +42,7 @@ document.addEventListener('click',async e=>{
     case 'cadFiltro':UI.cadFiltro=b.dataset.v;render();break;
     case 'novoTitulo':formTitulo(b.dataset.lado);break;case 'editTitulo':formTitulo(null,id);break;
     case 'baixar':formBaixa(id);break;case 'estornar':await estornar(id);break;case 'delTitulo':await delTitulo(id);break;
+    case 'ocultar':UI.ocultar=!UI.ocultar;try{localStorage.setItem('3struza-ocultar',UI.ocultar?'1':'0')}catch(e){}render();break;
     case 'novaCompra':formOp('compras');break;case 'novaVenda':formOp('vendas');break;
     case 'editOp':formOp(b.dataset.col,id);break;case 'delOp':await delOp(b.dataset.col,id);break;
     case 'novoParc':formParc();break;case 'editParc':if(modalClose)modalClose();formParc(id);break;case 'verParc':verParc(id);break;

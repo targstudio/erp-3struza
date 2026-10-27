@@ -21,6 +21,7 @@ function render(){
   const banner=MODE==='local'?`<div class="banner">Modo local: os dados ficam só neste navegador. Abra o ERP pelo link do Claude para salvar na nuvem.</div>`:'';
   const focus=document.activeElement?.id;const pos=document.activeElement?.selectionStart;
   $('#view').innerHTML=banner+`<div class="sec-h"><div><h2>${TITLES[UI.view]}</h2><p>${esc(r.sub||'')}</p></div><div class="actions">${r.actions||''}</div></div>`+r.html;
+  $('#view').classList.toggle('ocultar',UI.view==='painel'&&!!UI.ocultar);
   if(focus&&document.getElementById(focus)){const el=document.getElementById(focus);el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}
 }
 

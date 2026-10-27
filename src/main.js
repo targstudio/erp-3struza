@@ -5,6 +5,8 @@ import {$} from './util.js';
 import './eventos.js';
 import {ligarDicas} from './graficos.js';
 import {ligarBusca} from './busca.js';
+// olho do painel: lembra neste navegador se os valores ficam ocultos
+try{UI.ocultar=localStorage.getItem('3struza-ocultar')==='1'}catch(e){}
 
 /* ===================== boot ===================== */
 ligarDicas();

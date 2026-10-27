@@ -107,3 +107,8 @@ tfoot td{font-weight:700;background:var(--surface-2)}
 .seg button.on{background:var(--accent-soft);color:var(--accent)}
 input.search,select.f{border:1px solid var(--line);border-radius:7px;padding:7px 10px;background:var(--surface);min-width:0}
 
+
+/* olho do painel: borra os valores (tela de quem está ao lado) */
+#view.ocultar :is(.hero .big,.hero .chip,.hero .meta,.hero .spark,.hero .foot,.kpi b,.kpi small,.patrimonio .num,.patrimonio b,.card .num,.card td.r,svg text,.chart,.bar){filter:blur(9px);user-select:none}
+#view.ocultar [data-tip]{pointer-events:none}
+.btn.olho{padding-left:10px;padding-right:10px}
