@@ -534,8 +534,11 @@ function custosMedios(){const m=new Map();const add=(it,kg,v)=>{const k=it.tipo+
   S.ajustes.forEach(a=>{if(a.sentido!=='saida'&&num(a.custoKg))add(a,num(a.kg),num(a.kg)*num(a.custoKg))});
   const out=new Map();m.forEach((c,k)=>out.set(k,c.kg?c.v/c.kg:0));return out}
 // custo estimado e margem de uma venda (custo médio do material)
-function margemVenda(v,cm=custosMedios()){let custo=0,semCusto=false;(v.itens||[]).forEach(it=>{const c=cm.get(it.tipo+'|'+it.cor);if(!c)semCusto=true;custo+=num(it.kg)*(c||0)});
-  return{custo:r2(custo),margem:r2(num(v.total)-custo),semCusto}}
+function margemVenda(v,cm=custosMedios()){let mat=0,semCusto=false;(v.itens||[]).forEach(it=>{const c=cm.get(it.tipo+'|'+it.cor);if(!c)semCusto=true;mat+=num(it.kg)*(c||0)});
+  const frete=v.frete?.tipo==='cif'?num(v.frete.valor):0,imposto=r2(num(v.total)*num(v.impostoPct)/100);
+  const custo=r2(mat+frete+imposto);return{custo,custoMat:r2(mat),frete,imposto,margem:r2(num(v.total)-custo),semCusto}}
+const ultImposto=()=>{const v=S.vendas.slice().sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0)).find(v=>num(v.impostoPct));return v?fnum(v.impostoPct,2):''};
+const FRETE={nenhum:'Sem frete',cif:'CIF · por nossa conta',fob:'FOB · por conta do cliente'};
 // estoque disponível por material + cor (todas as embalagens somadas)
 function dispMat(tipo,cor,ignoreVendaId){let kg=0;const ok=x=>x.tipo===tipo&&x.cor===cor;
   S.compras.forEach(c=>(c.itens||[]).forEach(x=>{if(ok(x))kg+=num(x.kg)}));
@@ -816,17 +819,17 @@ function vOps(col){
   <div class="grid kpis">
     <div class="kpi hl"><span>Total ${isC?'comprado':'vendido'} em ${mShort(mes).toLowerCase()}</span><b>${brl(tot)}</b><small>${rows.length} ${isC?'compra(s)':'venda(s)'}</small></div>
     <div class="kpi"><span>Peso</span><b>${fkg(kgT)}</b><small>${kgT?'Média '+brl(tot/kgT)+'/kg':'—'}</small></div>
-    ${isC?'':`<div class="kpi"><span>Margem estimada</span><b class="${mgT<0?'neg':'pos'}">${brl(mgT)}</b><small>${tot?fnum(mgT/tot*100,1)+'% sobre as vendas · custo médio do material':'—'}</small></div>`}
+    ${isC?'':`<div class="kpi"><span>Lucro estimado</span><b class="${mgT<0?'neg':'pos'}">${brl(mgT)}</b><small>${tot?fnum(mgT/tot*100,1)+'% sobre as vendas · já desconta custo médio, frete CIF e impostos':'—'}</small></div>`}
     <div class="kpi"><span>Por forma de pagamento</span><small style="display:flex;flex-direction:column;gap:2px;font-size:13.5px;color:var(--fg)">${Object.keys(FORMA).filter(k=>k!=='misto'||porForma.misto).map(k=>`<span style="display:flex;justify-content:space-between;gap:8px"><span class="muted">${FORMA[k]}</span><b class="num" style="font-size:14px;font-family:var(--f-body)">${brl(porForma[k]||0)}</b></span>`).join('')}</small></div>
   </div>
   <div class="card">
     <div class="card-h"><div class="toolbar">${monthCtl()}</div><div class="sp"><input class="search" id="busca" placeholder="Buscar ${isC?'fornecedor':'cliente'} ou material…" value="${esc(UI.busca)}"></div></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Data</th><th>${isC?'Fornecedor':'Cliente'}</th><th>Material</th><th class="r">Peso</th><th class="r">R$/kg</th><th class="r">Total</th>${isC?'':'<th class="r">Margem</th>'}<th>Pagamento</th><th></th></tr></thead><tbody>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Data</th><th>${isC?'Fornecedor':'Cliente'}</th><th>Material</th><th class="r">Peso</th><th class="r">R$/kg</th><th class="r">Total</th>${isC?'':'<th class="r">Lucro</th>'}<th>Pagamento</th><th></th></tr></thead><tbody>
     ${rows.map(x=>{const st=finStatus(x);return `<tr><td class="num muted">#${x.numero}</td><td class="num">${fd(x.data)}</td><td>${esc(parcNome(x.parceiroId))}</td>
       <td>${(x.itens||[]).map(i=>`<div style="white-space:nowrap">${swatch(i.cor)}${esc(i.tipo)} ${esc(i.cor)} <span class="muted">· ${i.embalagem==='granel'?'granel':fnum(i.qtd,0)+' '+EMB[i.embalagem].toLowerCase()+(num(i.qtd)>1?'s':'')+' de '+fnum(i.pesoUn,0)+' kg'}</span></div>`).join('')}</td>
-      <td class="r">${fkg(x.totalKg)}</td><td class="r">${x.totalKg?brl(x.total/x.totalKg):'—'}</td><td class="r"><b>${brl(x.total)}</b></td>${isC?'':(m=>`<td class="r ${m.margem<0?'neg':''}" title="Custo estimado ${brl(m.custo)}${m.semCusto?' · algum material sem custo cadastrado':''}">${brl(m.margem)}${m.semCusto?' <span class="muted">*</span>':''}<div class="muted" style="font-size:12px">${num(x.total)?fnum(m.margem/num(x.total)*100,1)+'%':''}</div></td>`)(mg.get(x.id))}
+      <td class="r">${fkg(x.totalKg)}</td><td class="r">${x.totalKg?brl(x.total/x.totalKg):'—'}</td><td class="r"><b>${brl(x.total)}</b></td>${isC?'':(m=>`<td class="r ${m.margem<0?'neg':''}" title="Material ${brl(m.custoMat)}${m.frete?' · frete CIF '+brl(m.frete):''}${m.imposto?' · impostos '+brl(m.imposto):''}${m.semCusto?' · algum material sem custo cadastrado':''}">${brl(m.margem)}${m.semCusto?' <span class="muted">*</span>':''}<div class="muted" style="font-size:12px">${num(x.total)?fnum(m.margem/num(x.total)*100,1)+'%':''}</div></td>`)(mg.get(x.id))}
       <td><div>${FORMA[x.forma]}${x.forma==='credito'?` · ${x.parcelas}x`:''}</div>${st}</td>
-      <td class="acts"><button class="btn sm" data-act="recibo" data-col="${col}" data-id="${x.id}" title="${isC?'Comprovante de compra':'Recibo / romaneio'} para imprimir ou salvar em PDF">${isC?'Comprovante':'Recibo'}</button> <button class="btn sm" data-act="editOp" data-col="${col}" data-id="${x.id}">Editar</button> <button class="btn sm danger" data-act="delOp" data-col="${col}" data-id="${x.id}">Excluir</button> ${histBtn(col,x.id)}</td></tr>`}).join('')||`<tr><td colspan="${isC?9:10}"><div class="empty"><b>Nenhuma ${isC?'compra':'venda'} em ${mLabel(mes)}</b>Use “+ Nova ${isC?'compra':'venda'}” para lançar.</div></td></tr>`}
+      <td class="acts"><button class="btn sm" data-act="recibo" data-col="${col}" data-id="${x.id}" title="${isC?'Comprovante de compra':'Recibo de venda'} para imprimir ou salvar em PDF">${isC?'Comprovante':'Recibo'}</button>${isC?'':` <button class="btn sm" data-act="romaneio" data-id="${x.id}" title="Romaneio de carga para imprimir">Romaneio</button>`} <button class="btn sm" data-act="editOp" data-col="${col}" data-id="${x.id}">Editar</button> <button class="btn sm danger" data-act="delOp" data-col="${col}" data-id="${x.id}">Excluir</button> ${histBtn(col,x.id)}</td></tr>`}).join('')||`<tr><td colspan="${isC?9:10}"><div class="empty"><b>Nenhuma ${isC?'compra':'venda'} em ${mLabel(mes)}</b>Use “+ Nova ${isC?'compra':'venda'}” para lançar.</div></td></tr>`}
     </tbody>${rows.length?`<tfoot><tr><td colspan="4">${rows.length} lançamento(s)</td><td class="r">${fkg(kgT)}</td><td class="r">${kgT?brl(tot/kgT):''}</td><td class="r">${brl(tot)}</td>${isC?'':`<td class="r">${brl(mgT)}</td>`}<td colspan="2"></td></tr></tfoot>`:''}</table></div>
   </div>`};
 }
@@ -909,7 +912,7 @@ async function loadHist(reset){
   if(error){HIST.err=/historico/.test(error.message||'')?'missing':error.message;render();return}
   HIST.err='';HIST.rows.push(...data);HIST.more=data.length===100;render();
 }
-const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',pagamentos:'Contas do pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag'};
+const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',frete:'Frete',impostoPct:'Impostos (%)',margemAlvo:'Margem desejada (%)',totalMat:'Total do material',pagamentos:'Contas do pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag'};
 const SKIP=new Set(['criadoEm','grupo','ref','movimentoId','exemplo','totalParcelas']);
 const MONEY=new Set(['saldoInicial','valor','valorPago','total','custoKg','precoKg']);
 function fmtVal(k,v){
@@ -921,6 +924,8 @@ function fmtVal(k,v){
   if(k==='contaId'||k==='contaDestinoId')return contaNome(v);
   if(k==='pagamentos'&&Array.isArray(v))return v.map(p=>pgTxt(p)+' · '+contaNome(p.contaId)+' '+brl(p.valor)).join('; ');
   if(k==='cheque'&&v)return pgTxt({meio:'cheque',cheque:v});
+  if(k==='frete'&&v)return FRETE[v.tipo]+' · '+brl(v.valor)+(v.cobrar?' (cobrado do cliente)':'')+(v.transportadora?' · '+v.transportadora:'');
+  if(k==='totalMat')return brl(v);
   if(k==='parceiroId')return parcNome(v);
   if(k==='forma')return FORMA[v]||v;
   if(k==='tipo'&&TIPOCONTA[v])return TIPOCONTA[v];
@@ -1277,6 +1282,18 @@ function formOp(col,id){
     <div><div class="hint" style="margin-bottom:6px;font-weight:600">Itens</div><div class="tbl-wrap"><table class="items"><thead><tr><th style="min-width:150px">Tipo de material</th><th style="min-width:110px">Cor</th><th style="min-width:110px">Embalagem</th><th style="min-width:70px">Qtd.</th><th style="min-width:86px">Peso emb. (kg)</th><th style="min-width:96px">Peso total (kg)</th><th style="min-width:92px">${isC?'Preço':'Valor'} R$/kg</th><th class="r" style="min-width:100px">Subtotal</th><th></th></tr></thead><tbody id="itRows"></tbody></table></div>
       <button type="button" class="btn sm" id="addIt" style="margin-top:6px">+ Adicionar item</button></div>
     <div class="total-line" id="totLine"></div>
+    ${isC?'':`<div class="box"><div class="hint" style="font-weight:600">Frete</div>
+      <div class="opts">${Object.entries(FRETE).map(([k,l])=>`<label><input type="radio" name="freteTipo" value="${k}" ${(o.frete?.tipo||'nenhum')===k?'checked':''}>${l}</label>`).join('')}</div>
+      <div id="frBox" style="display:flex;flex-direction:column;gap:10px">
+        <div class="row"><label class="fl">Valor do frete (R$)<input name="freteValor" id="frValor" inputmode="decimal" value="${num(o.frete?.valor)?fnum(o.frete.valor):''}" placeholder="0,00"></label>
+          <label class="fl" id="frContaL">Frete pago pela conta<select name="freteConta" id="frConta"><option value="">Não lançar no caixa agora</option>${contaOpts(o.frete?.contaId??'')}</select></label></div>
+        <label id="frCobrarL" style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" name="freteCobrar" id="frCobrar" ${o.frete?o.frete.cobrar?'checked':'':'checked'}> Somar o frete ao total cobrado do cliente</label>
+        <div class="row"><label class="fl">Transportadora<input name="freteTransp" value="${esc(o.frete?.transportadora||'')}"></label><label class="fl">Placa<input name="fretePlaca" value="${esc(o.frete?.placa||'')}"></label><label class="fl">Motorista<input name="freteMotorista" value="${esc(o.frete?.motorista||'')}"></label></div>
+        <span class="hint" id="frHint"></span></div></div>
+    <div class="box"><div class="hint" style="font-weight:600">Impostos e lucro</div>
+      <div class="row"><label class="fl">Impostos (% sobre a venda)<input name="impostoPct" id="oImp" inputmode="decimal" value="${o.impostoPct!=null&&o.impostoPct!==''?fnum(o.impostoPct,2):(ultImposto()||'')}" placeholder="0"></label>
+        <label class="fl">Margem desejada (%)<input name="margemAlvo" id="oMargem" inputmode="decimal" value="${o.margemAlvo!=null&&o.margemAlvo!==''?fnum(o.margemAlvo,2):''}" placeholder="Ex.: 20"></label></div>
+      <div id="lucroBox"></div></div>`}
     <div><div class="hint" style="margin-bottom:6px;font-weight:600">Forma de pagamento</div><div class="opts">${Object.entries(FORMA).filter(([k])=>k!=='misto').map(([k,l])=>`<label><input type="radio" name="forma" value="${k}" ${forma0===k?'checked':''}>${l}</label>`).join('')}</div></div>
     <div class="box" id="fpConta">${pgBox(isC?'Como foi pago (sai de qual conta)':'Como o cliente pagou (entra em qual conta)')}</div>
     <div class="box" id="fpCred"><div class="row"><label class="fl">Entrada à vista (R$, opcional)<input name="entrada" id="oEntrada" inputmode="decimal" value="${num(o.entrada)?fnum(o.entrada):''}" placeholder="0"></label><label class="fl">Parcelas<input name="parcelas" id="oParcelas" inputmode="numeric" value="${o.parcelas||1}"></label><label class="fl">1º vencimento<input type="date" name="primeiroVenc" id="oVenc" value="${o.primeiroVenc||addDays(today(),30)}"></label></div><div class="hint" id="credPrev"></div></div>
@@ -1293,10 +1310,29 @@ function formOp(col,id){
       <td data-l="R$/kg"><input data-k="precoKg" inputmode="decimal" value="${it.precoKg===''?'':fnum(it.precoKg,4)}"></td>
       <td class="r" style="padding-top:12px;font-weight:600" data-l="Subtotal" data-sub>${brl(num(it.kg)*num(it.precoKg))}</td>
       <td><button type="button" class="btn sm danger" data-rm="${i}" ${itens.length<2?'disabled':''} aria-label="Remover item">×</button></td></tr>`}).join('');totals()};
-    const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);
-      $('#totLine').innerHTML=`<div><span>Peso total</span>${fkg(kgT)}</div><div><span>Média</span>${kgT?brl(t/kgT)+'/kg':'—'}</div><div><span>Total</span>${brl(t)}</div>`;
+    const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);const fc=freteCobrado();
+      $('#totLine').innerHTML=`<div><span>Peso total</span>${fkg(kgT)}</div><div><span>Média</span>${kgT?brl(t/kgT)+'/kg':'—'}</div>${fc?`<div><span>Material</span>${brl(t)}</div><div><span>Frete</span>${brl(fc)}</div>`:''}<div><span>Total</span>${brl(t+fc)}</div>`;
+      if(!isC)lucro();
       tb.querySelectorAll('tr').forEach(tr=>{const it=itens[+tr.dataset.i];tr.querySelector('[data-sub]').textContent=brl(num(it.kg)*num(it.precoKg))});credPrev();if($('#pgInfo'))pgInfo()};
-    const credPrev=()=>{const n=Math.max(1,parseInt(fv(f,'parcelas'))||1);const ent=num(fv(f,'entrada'));const t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0)-ent;const v=fv(f,'primeiroVenc')||today();
+    // frete e lucro (só na venda)
+    const freteTipo=()=>isC?'nenhum':(f.elements.freteTipo.value||'nenhum');
+    const freteCobrado=()=>freteTipo()==='cif'&&f.elements.freteCobrar.checked?r2(num(fv(f,'freteValor'))):0;
+    const totalVenda=()=>r2(itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0)+freteCobrado());
+    const lucro=()=>{const ft=freteTipo();$('#frBox').hidden=ft==='nenhum';$('#frContaL').hidden=ft!=='cif';$('#frCobrarL').hidden=ft!=='cif';
+      $('#frHint').textContent=ft==='cif'?'CIF: a 3STRUZA paga o frete. O valor entra como custo da venda e, se escolher uma conta, sai do caixa na data da venda.':ft==='fob'?'FOB: o cliente paga o frete direto ao transportador. O valor fica só registrado, não entra no lucro.':'';
+      const cm=custosMedios();const v={itens:itens.map(i=>({...i,kg:num(i.kg)})),total:totalVenda(),frete:{tipo:ft,valor:num(fv(f,'freteValor'))},impostoPct:num(fv(f,'impostoPct'))};
+      const m=margemVenda(v,cm);const T=v.total,kg=itens.reduce((a,i)=>a+num(i.kg),0);const mat=r2(T-freteCobrado());
+      const alvoM=num(fv(f,'margemAlvo'));const tx=v.impostoPct/100;
+      // preço por kg para chegar na margem desejada: T(1-t-a)=custo material+frete CIF
+      let sug='';if(alvoM&&kg){const d=1-tx-alvoM/100;if(d>0){const Tn=(m.custoMat+m.frete)/d;const p=(Tn-freteCobrado())/kg;sug=`<div class="hint" style="margin-top:6px">Para ter <b>${fnum(alvoM,1)}%</b> de margem, venda a <b>${brl(p)}/kg</b> em média${kg&&mat?` (hoje ${brl(mat/kg)}/kg)`:''}. ${itens.length===1?`<button type="button" class="btn sm" id="aplPreco" data-p="${r2(p*10000)/10000}">Usar este preço</button>`:''}</div>`}else sug='<div class="hint">Margem + impostos passam de 100%.</div>'}
+      const ln=(l,v,cls='')=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0" class="${cls}"><span>${l}</span><b class="num">${v}</b></div>`;
+      $('#lucroBox').innerHTML=`<div style="font-size:14px;border-top:1px solid var(--line);padding-top:8px">
+        ${ln('Material vendido',brl(mat))}${freteCobrado()?ln('+ Frete cobrado do cliente',brl(freteCobrado())):''}${ln('= Total da venda',brl(T))}
+        ${ln('− Custo do material (custo médio)'+(m.semCusto?' *':''),brl(m.custoMat))}${m.frete?ln('− Frete CIF',brl(m.frete)):''}${m.imposto?ln(`− Impostos (${fnum(v.impostoPct,2)}%)`,brl(m.imposto)):''}
+        <div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:16px"><span><b>Lucro da venda</b></span><b class="num ${m.margem<0?'neg':'pos'}">${brl(m.margem)} <span style="font-size:13px">${T?'· '+fnum(m.margem/T*100,1)+'%':''}</span></b></div>
+        ${m.semCusto?'<div class="hint">* Algum material ainda não tem custo (sem compra ou ajuste com custo/kg).</div>':''}${sug}</div>`;
+      const ap=$('#aplPreco');if(ap)ap.onclick=()=>{itens[0].precoKg=+ap.dataset.p;drawRows()}};
+    const credPrev=()=>{const n=Math.max(1,parseInt(fv(f,'parcelas'))||1);const ent=num(fv(f,'entrada'));const t=totalVenda()-ent;const v=fv(f,'primeiroVenc')||today();
       $('#credPrev').textContent=t>0?`${ent>0?'Entrada de '+brl(ent)+' no caixa + ':''}${n}x de cerca de ${brl(t/n)} · ${isC?'vai para Contas a pagar':'vai para Contas a receber'} de ${fd(v)} até ${fd(addMonths(v,n-1))}`:''};
     tb.addEventListener('input',e=>{const tr=e.target.closest('tr');if(!tr)return;const it=itens[+tr.dataset.i];const k=e.target.dataset.k;
       if(k==='qtd'||k==='pesoUn'||k==='kg'||k==='precoKg'){it[k]=e.target.value;if(k==='qtd'||k==='pesoUn'){it.kg=r2(num(it.qtd)*num(it.pesoUn));tr.querySelector('[data-k=kg]').value=fnum(it.kg)}
@@ -1305,7 +1341,8 @@ function formOp(col,id){
       if(k==='tipo'||k==='cor'||k==='embalagem'){it[k]=e.target.value;if(k==='embalagem'){if(it.embalagem==='granel'){it.qtd=0;it.pesoUn=0}else{it.pesoUn=it.embalagem==='saco'?c.pesoSaco:c.pesoBag;it.qtd=it.qtd||1;it.kg=r2(num(it.qtd)*num(it.pesoUn))}}drawRows()}});
     tb.addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(b){itens.splice(+b.dataset.rm,1);drawRows()}});
     $('#addIt').onclick=()=>{const l=itens[itens.length-1]||{};itens.push({tipo:l.tipo||c.tipos[0],cor:c.cores[0],embalagem:l.embalagem||'bigbag',qtd:1,pesoUn:l.pesoUn||c.pesoBag,kg:l.pesoUn||c.pesoBag,precoKg:l.precoKg||''});drawRows()};
-    const alvo=()=>{const v=f.elements.forma.value,t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);return r2(v==='credito'?num(fv(f,'entrada')):t)};
+    const alvo=()=>{const v=f.elements.forma.value;return r2(v==='credito'?num(fv(f,'entrada')):totalVenda())};
+    if(!isC){f.querySelectorAll('[name=freteTipo]').forEach(r=>r.addEventListener('change',totals));['frValor','frCobrar','oImp','oMargem'].forEach(k=>{$('#'+k).addEventListener('input',totals);$('#'+k).addEventListener('change',totals)})}
     const PG=pgMount(pags,alvo,isC),pgInfo=PG.info;f.__pags=()=>pags;
     const fp=()=>{const v=f.elements.forma.value;$('#fpConta').hidden=!(AVISTA.has(v)||(v==='credito'&&num(fv(f,'entrada'))>0));$('#fpCred').hidden=v!=='credito';$('#fpPerm').hidden=v!=='permuta'};
     f.querySelectorAll('[name=forma]').forEach(r=>r.addEventListener('change',()=>{fp();const v=f.elements.forma.value;if(MEIO[v]&&pags.length===1&&pags[0].meio!==v){pags[0].meio=v;const d=defaultConta(v);if(d&&!id)pags[0].contaId=d;PG.draw()}pgInfo()}));
@@ -1319,7 +1356,14 @@ function formOp(col,id){
     if(its.some(i=>i.kg<=0))throw'Todo item precisa ter peso maior que zero.';
     if(its.some(i=>i.precoKg<=0)&&f.elements.forma.value!=='permuta')throw'Informe o preço por kg de todos os itens.';
     const forma=f.elements.forma.value;
-    const total=r2(its.reduce((a,i)=>a+i.kg*i.precoKg,0)),totalKg=r2(its.reduce((a,i)=>a+i.kg,0));
+    const totalMat=r2(its.reduce((a,i)=>a+i.kg*i.precoKg,0)),totalKg=r2(its.reduce((a,i)=>a+i.kg,0));
+    let frete=null,impostoPct=0,margemAlvo='';
+    if(!isC){const tp=f.elements.freteTipo.value||'nenhum';const fvv=r2(num(fv(f,'freteValor')));
+      if(tp!=='nenhum'&&fvv<0)throw'Valor do frete inválido.';
+      frete=tp==='nenhum'?null:{tipo:tp,valor:fvv,cobrar:tp==='cif'&&f.elements.freteCobrar.checked,contaId:tp==='cif'?fv(f,'freteConta'):'',transportadora:fv(f,'freteTransp'),placa:fv(f,'fretePlaca'),motorista:fv(f,'freteMotorista')};
+      impostoPct=num(fv(f,'impostoPct'));if(impostoPct<0||impostoPct>=100)throw'Impostos precisam ficar entre 0 e 100%.';
+      margemAlvo=fv(f,'margemAlvo')===''?'':num(fv(f,'margemAlvo'))}
+    const total=r2(totalMat+(frete?.cobrar?frete.valor:0));
     let novoParc=null;
     if(parceiroId==='__novo'){const nome=fv(f,'np_nome');if(!nome)throw'Informe o nome do novo cadastro.';parceiroId=nid();
       novoParc={id:parceiroId,nome,pessoa:f.elements.np_pessoa.value,documento:fv(f,'np_documento'),fornecedor:isC,cliente:!isC}}
@@ -1353,7 +1397,7 @@ function formOp(col,id){
     if(novoParc)await put('parceiros',novoParc);
     else{const p=byId('parceiros',parceiroId);if(p&&!(isC?p.fornecedor:p.cliente))await put('parceiros',{...p,[isC?'fornecedor':'cliente']:true})}
     const numero=id?o.numero:await proximoNumero(col);
-    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+    const rec={...o,id:opId,numero,data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,frete,impostoPct,margemAlvo}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
     await put(col,rec);
     const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(novoParc?.nome||'');
     const desc=`${isC?'Compra':'Venda'} #${numero} · ${pn}`;
@@ -1369,7 +1413,11 @@ function formOp(col,id){
     else{for(const t of lk.tit)await del('titulos',t.id);
       if(forma==='credito'&&aPrazo>0)for(const x of novasParcelas(parcelas,aPrazo,primeiroVenc,1,parcelas))await put('titulos',x)}
     // lançamento de caixa da própria operação (à vista ou entrada): atualiza no lugar
-    const proprios=S.movimentos.filter(m=>m.ref?.col===col&&m.ref.id===opId);
+    const proprios=S.movimentos.filter(m=>m.ref?.col===col&&m.ref.id===opId&&!m.ref.frete);
+    // frete CIF pago por nós: uma saída no caixa ligada à venda
+    if(!isC){const fm=S.movimentos.filter(m=>m.ref?.col===col&&m.ref.id===opId&&m.ref.frete);
+      if(frete?.tipo==='cif'&&frete.valor>0&&frete.contaId){await put('movimentos',{...(fm[0]||{id:nid(),criadoEm:Date.now()}),tipo:'saida',data,valor:frete.valor,contaId:frete.contaId,descricao:`Frete CIF · Venda #${numero} · ${pn}${frete.transportadora?' · '+frete.transportadora:''}`,categoria:'Frete de venda',parceiroId,ref:{col,id:opId,frete:true}});for(const m of fm.slice(1))await del('movimentos',m.id)}
+      else for(const m of fm)await del('movimentos',m.id)}
     // um lançamento por conta; reaproveita os existentes na edição
     for(const [i,pg] of pagamentos.entries()){const m0=proprios[i];
       await put('movimentos',{...(m0||{id:nid(),criadoEm:Date.now()}),tipo:isC?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:desc+` (${forma==='credito'?'entrada · ':''}${pgTxt(pg,isC)})`+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria,parceiroId,ref:{col,id:opId}})}
@@ -1413,7 +1461,7 @@ function relDados(){
       e.kg+=num(it.kg);e.receita+=num(it.kg)*num(it.precoKg);e.custo+=num(it.kg)*ck;mat.set(k,e)})});
   compras.forEach(c=>{const e=forn.get(c.parceiroId)||{n:0,kg:0,total:0};e.n++;e.kg+=num(c.totalKg);e.total+=num(c.total);forn.set(c.parceiroId,e)});
   // despesas e outras receitas pelo caixa (compra e venda de material ficam de fora: já entram pelo custo e pelas vendas)
-  S.movimentos.filter(dentro).forEach(m=>{if(m.tipo==='saida'&&m.categoria!=='Compra de material'){const k=m.categoria||'Sem categoria';desp.set(k,(desp.get(k)||0)+num(m.valor))}
+  S.movimentos.filter(dentro).forEach(m=>{if(m.tipo==='saida'&&m.categoria!=='Compra de material'&&!m.ref?.frete){const k=m.categoria||'Sem categoria';desp.set(k,(desp.get(k)||0)+num(m.valor))}
     if(m.tipo==='entrada'&&m.categoria!=='Venda de material'&&!(m.ref&&m.ref.col==='vendas')&&!(m.ref&&m.ref.col==='titulos'&&byId('titulos',m.ref.id)?.ref?.col==='vendas')){const k=m.categoria||'Sem categoria';rec.set(k,(rec.get(k)||0)+num(m.valor))}});
   const despT=[...desp.values()].reduce((a,v)=>a+v,0),recT=[...rec.values()].reduce((a,v)=>a+v,0);
   if(UI.per==='ano')label=UI.mes.slice(0,4);
@@ -1432,7 +1480,7 @@ function vRelatorios(){
   return{sub:'Resultado, margem por material, clientes, fornecedores e despesas',actions:`<div class="toolbar">${perCtl()}${UI.per==='tudo'?'':monthCtl()}</div>`,html:`
   <div class="grid kpis">
     <div class="kpi hl"><span>Vendas em ${esc(d.label)}</span><b>${brl(d.receita)}</b><small>${d.vendas.length} venda(s), à vista e a prazo</small></div>
-    <div class="kpi"><span>Custo do material vendido</span><b>${brl(d.custo)}</b><small>Pelo custo médio de compra${d.semCusto?' · * há material sem custo':''}</small></div>
+    <div class="kpi"><span>Custo das vendas</span><b>${brl(d.custo)}</b><small>Material pelo custo médio + frete CIF + impostos${d.semCusto?' · * há material sem custo':''}</small></div>
     <div class="kpi"><span>Margem bruta</span><b class="${d.margem<0?'neg':'pos'}">${brl(d.margem)}</b><small>${pct(d.margem,d.receita)} sobre as vendas</small></div>
     <div class="kpi"><span>Resultado estimado</span><b class="${d.resultado<0?'neg':'pos'}">${brl(d.resultado)}</b><small>Margem ${d.recT?'+ outras receitas '+brl(d.recT)+' ':''}− despesas ${brl(d.despT)}</small></div>
   </div>
@@ -1458,6 +1506,30 @@ function csvTit(lado){const rows=UI.titRows||[];
     `contas-a-${lado}-${slug(UI.filtroT==='atrasado'?'atrasadas':mLabel(UI.mes))}.csv`)}
 
 /* ---------- Recibo / comprovante para imprimir ---------- */
+function romaneio(id){
+  const o=byId('vendas',id);if(!o)return;const p=byId('parceiros',o.parceiroId)||{};const fr=o.frete||{};
+  const logo=document.querySelector('.login-logo')?.src||'';
+  const un=o.itens.reduce((a,i)=>a+(i.embalagem==='granel'?0:num(i.qtd)),0);
+  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Romaneio · Venda #${o.numero} · 3STRUZA</title><style>
+    body{font-family:Inter,system-ui,Arial,sans-serif;color:#1d2330;margin:32px;font-size:13px}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin:14px 0}
+    th,td{padding:8px 6px;border:1px solid #d5dae3;text-align:left}th{font-size:11px;text-transform:uppercase;color:#677085;background:#f4f6f9}.r{text-align:right}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2px solid #0B419E;padding-bottom:14px}.muted{color:#677085}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-top:14px}.ass{margin-top:56px;display:flex;gap:30px}.ass div{flex:1;border-top:1px solid #1d2330;padding-top:6px;text-align:center;font-size:12px}
+    @media print{.noprint{display:none}body{margin:12mm}}</style></head><body>
+    <div class="noprint" style="margin-bottom:16px"><button onclick="print()" style="padding:8px 14px;font-size:14px">Imprimir ou salvar em PDF</button></div>
+    <div class="top"><div>${logo?`<img src="${logo}" style="height:34px">`:'<h1>3STRUZA</h1>'}<div class="muted">Comércio de PP reciclado</div></div>
+      <div style="text-align:right"><h1>Romaneio de carga</h1><div class="muted">Venda #${o.numero} · ${fd(o.data)}</div></div></div>
+    <div class="grid"><div><b>Destinatário:</b> ${esc(p.nome||'—')}${p.documento?'<br>'+esc(p.documento):''}${p.endereco||p.cidade?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</div>
+      <div><b>Frete:</b> ${FRETE[fr.tipo]||'Sem frete'}${fr.transportadora?'<br><b>Transportadora:</b> '+esc(fr.transportadora):''}${fr.placa?'<br><b>Placa:</b> '+esc(fr.placa):''}${fr.motorista?'<br><b>Motorista:</b> '+esc(fr.motorista):''}</div></div>
+    <table><thead><tr><th>#</th><th>Material</th><th>Cor</th><th>Embalagem</th><th class="r">Qtd.</th><th class="r">Peso unit.</th><th class="r">Peso total</th><th>Conferido</th></tr></thead><tbody>
+      ${o.itens.map((i,k)=>`<tr><td>${k+1}</td><td>${esc(i.tipo)}</td><td>${esc(i.cor)}</td><td>${EMB[i.embalagem]}</td><td class="r">${i.embalagem==='granel'?'—':fnum(i.qtd,0)}</td><td class="r">${i.embalagem==='granel'?'—':fkg(i.pesoUn)}</td><td class="r"><b>${fkg(i.kg)}</b></td><td></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="4"><b>Total</b></td><td class="r"><b>${un?fnum(un,0):'—'}</b></td><td></td><td class="r"><b>${fkg(o.totalKg)}</b></td><td></td></tr></tfoot></table>
+    <div class="grid"><div><b>Peso na balança (saída):</b> ____________ kg</div><div><b>Peso na balança (chegada):</b> ____________ kg</div></div>
+    ${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
+    <div class="ass"><div>Expedição · 3STRUZA</div><div>Motorista${fr.motorista?' · '+esc(fr.motorista):''}</div><div>Recebido por · ${esc(p.nome||'cliente')}<br><span class="muted">data ___/___/_____</span></div></div></body></html>`;
+  const w=window.open('','_blank');if(!w){toast('Libere as janelas pop-up deste site para abrir o romaneio');return}
+  w.document.open();w.document.write(html);w.document.close();
+}
 function recibo(col,id){
   const o=byId(col,id);if(!o)return;const isC=col==='compras';const p=byId('parceiros',o.parceiroId)||{};const{tit}=linked(id);
   const logo=document.querySelector('.login-logo')?.src||'';
@@ -1474,8 +1546,9 @@ function recibo(col,id){
       <div style="text-align:right"><h1>${isC?'Comprovante de compra':'Recibo de venda'} #${o.numero}</h1><div class="muted">Data ${fd(o.data)}</div></div></div>
     <p><b>${isC?'Fornecedor':'Cliente'}:</b> ${esc(p.nome||'—')}${p.documento?' · '+esc(p.documento):''}${p.cidade?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</p>
     <table><thead><tr><th>Material</th><th>Embalagem</th><th class="r">Peso</th><th class="r">R$/kg</th><th class="r">Subtotal</th></tr></thead><tbody>${linhas}</tbody>
-      <tfoot><tr><td colspan="2"><b>Total</b></td><td class="r"><b>${fkg(o.totalKg)}</b></td><td></td><td class="r tot">${brl(o.total)}</td></tr></tfoot></table>
-    <p><b>Pagamento:</b> ${pag}</p>${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
+      <tfoot>${o.frete?.cobrar&&num(o.frete.valor)?`<tr><td colspan="4">Frete (CIF)</td><td class="r">${brl(o.frete.valor)}</td></tr>`:''}<tr><td colspan="2"><b>Total</b></td><td class="r"><b>${fkg(o.totalKg)}</b></td><td></td><td class="r tot">${brl(o.total)}</td></tr></tfoot></table>
+    ${o.frete?`<p><b>Frete:</b> ${FRETE[o.frete.tipo]}${o.frete.transportadora?' · '+esc(o.frete.transportadora):''}${o.frete.placa?' · placa '+esc(o.frete.placa):''}</p>`:''}
+    <p><b>Pagamento:</b> ${pag}${(o.pagamentos||[]).length>1||o.pagamentos?.[0]?.meio==='cheque'?'<br>'+o.pagamentos.map(x=>esc(pgTxt(x,isC))+' '+brl(x.valor)).join('<br>'):''}</p>${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
     <div class="ass"><div>3STRUZA</div><div>${esc(p.nome||(isC?'Fornecedor':'Cliente'))}</div></div></body></html>`;
   const w=window.open('','_blank');if(!w){toast('Libere as janelas pop-up deste site para abrir o recibo');return}
   w.document.open();w.document.write(html);w.document.close();
@@ -1535,7 +1608,7 @@ document.addEventListener('click',async e=>{
     case 'filtroConta':UI.filtroConta=UI.filtroConta===id?'':id;render();break;
     case 'per':UI.per=b.dataset.v;render();break;
     case 'csv':baixarCSV();break;
-    case 'csvTit':csvTit(b.dataset.lado);break;case 'csvRel':csvRel(b.dataset.k);break;case 'recibo':recibo(b.dataset.col,id);break;
+    case 'csvTit':csvTit(b.dataset.lado);break;case 'csvRel':csvRel(b.dataset.k);break;case 'recibo':recibo(b.dataset.col,id);break;case 'romaneio':romaneio(id);break;
     case 'backup':baixarBackup();break;case 'backupJson':baixarBackupJSON();break;
     case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;
     case 'filtroT':UI.filtroT=b.dataset.v;render();break;
