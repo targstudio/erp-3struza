@@ -7,7 +7,7 @@ import {formMov} from './forms/movimento.js';
 import {delOp,formOp} from './forms/operacao.js';
 import {formParc,verParc} from './forms/parceiro.js';
 import {delTitulo,estornar,formBaixa,formTitulo} from './forms/titulo.js';
-import {recibo,romaneio} from './impressos.js';
+import {extratoCaixa,recibo,romaneio} from './impressos.js';
 import {ask,fv,modal,modalClose,toast} from './modal.js';
 import {render} from './render.js';
 import {baixarCSV} from './telas/caixa.js';
@@ -34,7 +34,7 @@ document.addEventListener('click',async e=>{
       if(await ask('Excluir movimentação',`Excluir <b>${esc(m.descricao)}</b> de ${brl(m.valor)}?`,[{label:'Excluir',cls:'danger',v:true}])){await del('movimentos',id);toast('Excluído')}break}
     case 'filtroConta':UI.filtroConta=UI.filtroConta===id?'':id;render();break;
     case 'per':UI.per=b.dataset.v;render();break;
-    case 'csv':baixarCSV();break;
+    case 'csv':baixarCSV();break;case 'extratoImp':extratoCaixa();break;
     case 'csvTit':csvTit(b.dataset.lado);break;case 'csvRel':csvRel(b.dataset.k);break;case 'recibo':recibo(b.dataset.col,id);break;case 'romaneio':romaneio(id);break;
     case 'backup':baixarBackup();break;case 'backupJson':baixarBackupJSON();break;
     case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;

@@ -45,7 +45,7 @@ function vCaixa(){
     <div class="card-h"><h2>${tituloExtrato}</h2><div class="sp toolbar">${perCtl()}${UI.per==='tudo'?'':monthCtl()}
       <select class="f" id="fConta" data-act="fConta"><option value="">Todos os caixas juntos</option>${contas.map(c=>`<option value="${c.id}" ${fc===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>
       <input class="search" id="busca" placeholder="Buscar…" value="${esc(UI.busca)}">
-      <button class="btn sm" data-act="csv">Baixar CSV</button></div></div>
+      <button class="btn sm" data-act="extratoImp" title="Extrato para imprimir ou salvar em PDF">Extrato para apresentar</button> <button class="btn sm" data-act="csv">Baixar CSV</button></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th class="r">Valor</th><th class="r">Saldo após</th><th></th></tr></thead><tbody>
     ${movsTela.map(m=>{const e=efeito(m);return `<tr><td class="num">${fd(m.data)}</td><td>${esc(m.descricao)} ${origem(m)}${m.parceiroId?`<div class="muted" style="font-size:12.5px">${esc(parcNome(m.parceiroId))}</div>`:''}</td><td class="muted">${esc(m.tipo==='transferencia'?'Transferência':m.categoria||'')}</td>
       <td>${m.tipo==='transferencia'?`${esc(contaNome(m.contaId))} → ${esc(contaNome(m.contaDestinoId))}`:esc(contaNome(m.contaId))}</td>
