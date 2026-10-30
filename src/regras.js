@@ -16,7 +16,9 @@ const statusT=t=>t.pago?'pago':(t.vencimento<today()?'atrasado':'aberto');
 const STATUS_PILL={pago:['p-ok','Pago'],atrasado:['p-late','Atrasado'],aberto:['p-open','Em aberto']};
 function pillT(t){const s=statusT(t);const[k,l]=STATUS_PILL[s];return `<span class="pill ${k}">${t.lado==='receber'&&s==='pago'?'Recebido':l}</span>`}
 const EMB={saco:'Saco',bigbag:'Big Bag',granel:'Granel'};
-const FORMA={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque',permuta:'Troca / Permuta',credito:'Crédito (a prazo)',misto:'Vários'};
+const FORMA={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque',permuta:'Troca / Permuta',credito:'Crédito (a prazo)',misto:'Vários',adiantamento:'Adiantamento do cliente'};
+// formas que não aparecem para escolher: são definidas pelo próprio lançamento
+const FORMA_AUTO=new Set(['misto','adiantamento']);
 const MEIO={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque'};const AVISTA=new Set(['dinheiro','pix','cheque','misto']);
 const TIPOCONTA={banco:'Banco · C/C',gaveta:'Físico · Gaveta',credito:'Crédito com terceiro'};
 const stockKey=it=>[it.tipo,it.cor,it.embalagem,it.embalagem==='granel'?0:num(it.pesoUn)].join('|');
@@ -68,7 +70,22 @@ function seqDia(v){if(num(v.seqDia))return num(v.seqDia);
 const proximoSeqDia=(data,ignoreId)=>Math.max(0,...S.vendas.filter(x=>x.data===data&&x.id!==ignoreId).map(seqDia))+1;
 const codVenda=v=>v?String(v.data||'').replace(/-/g,'')+'/'+String(seqDia(v)).padStart(3,'0'):'';
 // rótulo de compra/venda: venda usa o código com data, compra o número
-const rotOp=(col,o)=>col==='vendas'?'Venda '+codVenda(o):'Compra #'+(o?.numero??'');
+const rotOp=(col,o)=>col==='vendas'?'Venda '+codVenda(o):col==='orcamentos'?'Orçamento nº '+(o?.numero??''):col==='adiantamentos'?(o?.tipo==='devolucao'?'Devolução de adiantamento':'Adiantamento')+' nº '+(o?.numero??''):'Compra #'+(o?.numero??'');
+// nome do registro de origem para as mensagens ("edite ou exclua a venda")
+const NOMEOP={compras:'a compra',vendas:'a venda',orcamentos:'o orçamento',adiantamentos:'o adiantamento'};
+/* ---- adiantamentos de clientes ----
+   O cliente adianta dinheiro (entra no caixa) e fica com crédito. O crédito é usado depois como
+   abatimento numa venda (campo usoAdiant da venda) ou devolvido (adiantamento tipo devolucao). */
+function creditoCliente(pid,ignoreVendaId){let s=0;
+  S.adiantamentos.forEach(a=>{if(a.parceiroId===pid)s+=(a.tipo==='devolucao'?-1:1)*num(a.valor)});
+  S.vendas.forEach(v=>{if(v.parceiroId===pid&&v.id!==ignoreVendaId)s-=num(v.usoAdiant)});
+  return r2(s)}
+// saldo de crédito de todos os clientes que têm algum movimento de adiantamento
+function creditosClientes(){const ids=new Set([...S.adiantamentos.map(a=>a.parceiroId),...S.vendas.filter(v=>num(v.usoAdiant)).map(v=>v.parceiroId)]);
+  return[...ids].map(id=>{const ad=S.adiantamentos.filter(a=>a.parceiroId===id);const soma=t=>r2(ad.filter(a=>(a.tipo||'entrada')===t).reduce((x,a)=>x+num(a.valor),0));
+    return{id,recebido:soma('entrada'),devolvido:soma('devolucao'),usado:r2(S.vendas.filter(v=>v.parceiroId===id).reduce((x,v)=>x+num(v.usoAdiant),0)),saldo:creditoCliente(id)}})}
+// orçamento: aberto, vencido (passou da validade) ou vendido (virou venda que ainda existe)
+function statusOrc(o,hoje=today()){if(o.vendaId&&S.vendas.some(v=>v.id===o.vendaId))return'vendido';return o.validade&&o.validade<hoje?'vencido':'aberto'}
 function linked(refId){
   const tit=S.titulos.filter(t=>t.ref?.id===refId);
   const tids=new Set(tit.map(t=>t.id));
@@ -108,4 +125,4 @@ function genTitulos(base,modo,n,valor,venc){
   return out;
 }
 
-export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};
+export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,FORMA_AUTO,NOMEOP,creditoCliente,creditosClientes,statusOrc,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};

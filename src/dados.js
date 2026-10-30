@@ -2,7 +2,7 @@ import {render} from './render.js';
 import {DB,MODE,enqueue} from './sync.js';
 
 /* ===================== dados ===================== */
-const COLS=['contas','parceiros','movimentos','compras','vendas','titulos','ajustes','config'];
+const COLS=['contas','parceiros','movimentos','compras','vendas','titulos','ajustes','config','orcamentos','adiantamentos'];
 const S={};COLS.forEach(c=>S[c]=[]);
 const DEF_CFG={
   tipos:['PP Moído','PP Granulado','PP Aglutinado','PP Aparas/Fardo'],

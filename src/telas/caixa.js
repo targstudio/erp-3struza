@@ -31,6 +31,7 @@ function vCaixa(){
   const origem=m=>{if(!m.ref)return'';const src=m.ref.col==='titulos'?byId('titulos',m.ref.id):byId(m.ref.col,m.ref.id);
     if(m.ref.col==='compras')return `<span class="pill p-grey">Compra #${src?.numero??''}</span>`;
     if(m.ref.col==='vendas')return `<span class="pill p-grey">Venda ${codVenda(src)}</span>`;
+    if(m.ref.col==='adiantamentos')return `<span class="pill p-grey">${src?.tipo==='devolucao'?'Devolução de adiantamento':'Adiantamento'}</span>`;
     if(m.ref.col==='titulos')return `<span class="pill p-grey">${src?.lado==='receber'?'Conta a receber':'Conta a pagar'}</span>`;return''};
   const tituloExtrato=fc?'Extrato de '+esc(contaNome(fc)):'Extrato geral · todos os caixas';
   return{sub:'Entradas, saídas e saldo por local',actions:`<button class="btn" data-act="transf">⇄ Transferência</button><button class="btn" data-act="mov" data-t="saida">− Saída</button><button class="btn pri" data-act="mov" data-t="entrada">+ Entrada</button>`,html:`

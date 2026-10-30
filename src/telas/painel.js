@@ -1,6 +1,6 @@
 import {S,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
-import {TIPOCONTA,caixaPrevisto,estoque,pillT,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
+import {TIPOCONTA,caixaPrevisto,creditosClientes,estoque,pillT,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
 import {colunas,linha} from '../graficos.js';
 import {needSetup} from '../render.js';
 import {ICON,addDays,addMonths,brl,esc,fd,fdShort,fkg,fnum,mLabel,mShort,num,today} from '../util.js';
@@ -55,12 +55,14 @@ function vPainel(){
     ${late.length>3?`<div class="hint">e mais ${late.length-3}…</div>`:''}</div>`:''}
   ${(()=>{const cx=saldoTotal(),tot=cx+valTot,pc=tot>0?Math.max(0,Math.min(100,cx/tot*100)):0;
     const pagarTot=ab.filter(x=>x.lado==='pagar').reduce((a,x)=>a+num(x.valor),0);
+    // adiantamento de cliente: dinheiro já está no caixa, mas ainda é devido em material
+    const credTot=creditosClientes().reduce((a,c)=>a+Math.max(0,c.saldo),0);
     return `<div class="card patrimonio"><div class="card-b" style="display:flex;flex-wrap:wrap;gap:18px 32px;align-items:center">
       <div style="min-width:220px"><div class="muted" style="font-weight:600">Valor total da empresa</div><div class="num" style="font-size:34px;font-weight:700;color:var(--brand);letter-spacing:-.02em">${brl(tot)}</div><div class="muted" style="font-size:13px">Caixa + estoque (pelo custo médio)</div></div>
       <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:8px">
         <div class="bar" style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)" role="img" aria-label="Caixa ${brl(cx)}, estoque ${brl(valTot)}"><i style="width:${pc}%;background:var(--brand)"></i><i style="flex:1;background:var(--graphite)"></i></div>
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px"><span><span class="dot" style="display:inline-block;background:var(--brand);margin-right:6px"></span>Caixa <b class="num">${brl(cx)}</b></span><span><span class="dot" style="display:inline-block;background:var(--graphite);margin-right:6px"></span>Estoque <b class="num">${brl(valTot)}</b> <span class="muted num">· ${fkg(kgTot)}</span></span></div>
-        <div class="muted" style="font-size:13px">Contando também o que está em aberto: + a receber <span class="num">${brl(receberTot)}</span> − a pagar <span class="num">${brl(pagarTot)}</span> = <b>${brl(tot+receberTot-pagarTot)}</b></div></div></div></div>`})()}
+        <div class="muted" style="font-size:13px">Contando também o que está em aberto: + a receber <span class="num">${brl(receberTot)}</span> − a pagar <span class="num">${brl(pagarTot)}</span>${credTot>0.005?` − crédito de clientes <span class="num">${brl(credTot)}</span>`:''} = <b>${brl(tot+receberTot-pagarTot-credTot)}</b></div></div></div></div>`})()}
   <div class="grid heroes">
     <div class="hero blue"><h3>Saldo em caixa</h3>${ic('cal')}<div class="big">${brl(saldoTotal())}</div><span class="chip">${varMes>=0?'▲ +':'▼ −'}${brl(Math.abs(varMes))} vs ${mShort(months[4]).toLowerCase()}</span>${spark}<div class="foot">Soma de banco, gaveta e créditos com terceiros</div></div>
     <div class="hero graph"><h3>A receber</h3>${ic('coin')}<div class="big">${brl(receberTot)}</div><div class="meta">${abR.length} lançamento(s) em aberto · ${brl(receberMes)} vencem neste mês</div><div class="foot">${atrasR.length?`${atrasR.length} atrasado(s) somando ${brl(atrasR.reduce((a,x)=>a+num(x.valor),0))}`:'Nenhum recebimento atrasado'}</div></div>
