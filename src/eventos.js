@@ -41,6 +41,7 @@ document.addEventListener('click',async e=>{
     case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;
     case 'filtroT':UI.filtroT=b.dataset.v;render();break;
     case 'cadFiltro':UI.cadFiltro=b.dataset.v;render();break;
+    case 'opTipo':UI.opTipo=b.dataset.v;render();break;
     case 'novoTitulo':formTitulo(b.dataset.lado);break;case 'editTitulo':formTitulo(null,id);break;
     case 'baixar':formBaixa(id);break;case 'estornar':await estornar(id);break;case 'delTitulo':await delTitulo(id);break;
     case 'ocultar':UI.ocultar=!UI.ocultar;try{localStorage.setItem('3struza-ocultar',UI.ocultar?'1':'0')}catch(e){}render();break;
