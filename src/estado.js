@@ -9,10 +9,10 @@ const UI={view:'painel',mes:today().slice(0,7),filtroT:'todos',busca:'',filtroCo
 const VIEWS=[
   ['painel','Visão geral'],['g'],
   ['caixa','Caixa'],['pagar','Contas a pagar'],['receber','Contas a receber'],['g'],
-  ['compras','Compras'],['vendas','Vendas'],['estoque','Estoque'],['relatorios','Relatórios'],['g'],
+  ['compras','Compras'],['orcamentos','Orçamentos'],['vendas','Vendas'],['adiantamentos','Adiantamentos'],['estoque','Estoque'],['relatorios','Relatórios'],['g'],
   ['cadastros','Clientes e fornecedores'],['historico','Histórico'],['config','Configurações']
 ];
-const TITLES={painel:'Visão geral',caixa:'Caixa',pagar:'Contas a pagar',receber:'Contas a receber',compras:'Compras',vendas:'Vendas',estoque:'Estoque',relatorios:'Relatórios',cadastros:'Clientes e fornecedores',historico:'Histórico de alterações',config:'Configurações'};
+const TITLES={painel:'Visão geral',caixa:'Caixa',pagar:'Contas a pagar',receber:'Contas a receber',compras:'Compras',orcamentos:'Orçamentos',vendas:'Vendas',adiantamentos:'Adiantamentos de clientes',estoque:'Estoque',relatorios:'Relatórios',cadastros:'Clientes e fornecedores',historico:'Histórico de alterações',config:'Configurações'};
 
 function go(v){UI.view=v;UI.caixaLim=0;if(v==='historico'&&!HIST.loaded)loadHist(true);UI.busca='';try{history.replaceState(null,'','#'+v)}catch(e){}closeSide();render();window.scrollTo(0,0)}
 function closeSide(){$('#side').classList.remove('open');$('#scrim').classList.remove('on')}

@@ -2,19 +2,24 @@ import {S,byId,cfg,del,parcNome,put} from '../dados.js';
 import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
 import {parcFields} from './parceiro.js';
 import {ask,contaOpts,defaultConta,fv,modal,opt,toast} from '../modal.js';
-import {AVISTA,EMB,FORMA,FRETE,MEIO,custosMedios,dispMat,faltaEstoque,genTitulos,linked,margemVenda,proximoNumero,removeLinked,ultImposto,seqDia,proximoSeqDia,codVenda,rotOp} from '../regras.js';
+import {AVISTA,EMB,FORMA,FORMA_AUTO,FRETE,MEIO,creditoCliente,custosMedios,dispMat,faltaEstoque,genTitulos,linked,margemVenda,proximoNumero,removeLinked,ultImposto,seqDia,proximoSeqDia,codVenda,rotOp} from '../regras.js';
 import {$,addDays,addMonths,brl,esc,fd,fkg,fnum,nid,num,r2,today} from '../util.js';
 
-/* --- compra / venda --- */
-function formOp(col,id){
-  const isC=col==='compras';const c=cfg();
-  const o=id?byId(col,id):{data:today(),forma:'pix',itens:[{tipo:c.tipos[0],cor:c.cores[0],embalagem:'bigbag',qtd:1,pesoUn:c.pesoBag,kg:c.pesoBag,precoKg:''}],parcelas:1,primeiroVenc:addDays(today(),30)};
+/* --- compra / venda / orçamento ---
+   O orçamento usa o mesmo formulário da venda, sem pagamento: não mexe no estoque nem no caixa.
+   pre.orcId abre uma venda nova já preenchida com o orçamento. */
+function formOp(col,id,pre={}){
+  const isC=col==='compras',isO=col==='orcamentos';const c=cfg();
+  const orc=!id&&pre.orcId?byId('orcamentos',pre.orcId):null;
+  const o=id?byId(col,id):orc?{data:today(),forma:'pix',parceiroId:orc.parceiroId,itens:orc.itens,frete:orc.frete,impostoPct:orc.impostoPct,margemAlvo:orc.margemAlvo,obs:orc.obs,parcelas:1,primeiroVenc:addDays(today(),30)}
+    :{data:today(),forma:'pix',itens:[{tipo:c.tipos[0],cor:c.cores[0],embalagem:'bigbag',qtd:1,pesoUn:c.pesoBag,kg:c.pesoBag,precoKg:''}],parcelas:1,primeiroVenc:addDays(today(),30),...(isO?{validade:addDays(today(),7)}:{})};
+  const nome=isC?'compra':isO?'orçamento':'venda';
   const parcs=S.parceiros.slice().sort((a,b)=>(isC?(b.fornecedor-a.fornecedor):(b.cliente-a.cliente))||a.nome.localeCompare(b.nome));
   let itens=(o.itens||[]).map(i=>({...i}));
   const hasPaid=id&&linked(id).tit.some(t=>t.pago);
   // pagamento à vista (ou entrada) pode sair/entrar de várias contas
-  const pags=pgInit(o);const forma0=o.forma==='misto'?pags[0].meio:o.forma;
-  const form=modal((id?'Editar ':'Nova ')+(isC?'compra':'venda')+(id?' '+(isC?'#'+o.numero:codVenda(o)):''),`
+  const pags=pgInit(o);const forma0=o.forma==='misto'?pags[0].meio:o.forma==='adiantamento'?'pix':o.forma;
+  const form=modal((id?'Editar ':isO?'Novo ':'Nova ')+nome+(id?' '+(isC?'#'+o.numero:isO?'nº '+o.numero:codVenda(o)):orc?' do orçamento nº '+orc.numero:''),`
     ${hasPaid?`<div class="banner">Esta operação tem parcelas já ${isC?'pagas':'recebidas'}. Elas são mantidas ao salvar; se mudar o total ou o número de parcelas, só as parcelas em aberto são recalculadas.</div>`:''}
     <div class="row"><label class="fl">Data<input type="date" name="data" id="oData" value="${o.data}"></label>
       <label class="fl">${isC?'Fornecedor':'Cliente'}<select name="parceiroId" id="oParc"><option value="">Selecione…</option>${parcs.map(p=>`<option value="${p.id}" ${p.id===o.parceiroId?'selected':''}>${esc(p.nome)}${(isC?p.fornecedor:p.cliente)?'':(isC?' (cliente)':' (fornecedor)')}</option>`).join('')}<option value="__novo">+ Cadastrar novo…</option></select></label></div>
@@ -33,8 +38,14 @@ function formOp(col,id){
       <div class="row"><label class="fl">Impostos (% sobre a venda)<input name="impostoPct" id="oImp" inputmode="decimal" value="${o.impostoPct!=null&&o.impostoPct!==''?fnum(o.impostoPct,2):(ultImposto()||'')}" placeholder="0"></label>
         <label class="fl">Margem desejada (%)<input name="margemAlvo" id="oMargem" inputmode="decimal" value="${o.margemAlvo!=null&&o.margemAlvo!==''?fnum(o.margemAlvo,2):''}" placeholder="Ex.: 20"></label></div>
       <div id="lucroBox"></div></div>`}
-    <div><div class="hint" style="margin-bottom:6px;font-weight:600">Forma de pagamento</div><div class="opts">${Object.entries(FORMA).filter(([k])=>k!=='misto').map(([k,l])=>`<label><input type="radio" name="forma" value="${k}" ${forma0===k?'checked':''}>${l}</label>`).join('')}</div></div>
-    <div class="box" id="fpConta">${pgBox(isC?'Como foi pago (sai de qual conta)':'Como o cliente pagou (entra em qual conta)')}</div>
+    ${isO?`<div class="box"><div class="hint" style="font-weight:600">Condições do orçamento</div>
+      <div class="row"><label class="fl">Válido até<input type="date" name="validade" value="${o.validade||''}"></label><label class="fl">Condição de pagamento<input name="condicao" value="${esc(o.condicao||'')}" placeholder="Ex.: PIX à vista na retirada"></label></div>
+      <span class="hint">O orçamento não mexe no estoque nem no caixa. Quando o cliente pagar, use “Virar venda” na lista de orçamentos.</span></div>`:''}
+    ${isC||isO?'':`<div class="box" id="adBox" hidden><div class="hint" style="font-weight:600">Crédito do cliente (adiantamento)</div>
+      <div class="row"><label class="fl">Usar nesta venda (R$)<input name="usoAdiant" id="oUso" inputmode="decimal" value="${num(o.usoAdiant)?fnum(o.usoAdiant):''}" placeholder="0,00"></label>
+        <div class="fl" style="justify-content:flex-end"><button type="button" class="btn sm" id="usoTudo">Usar o máximo</button></div></div><span class="hint" id="adHint"></span></div>`}
+    <div ${isO?'hidden':''}><div class="hint" style="margin-bottom:6px;font-weight:600">Forma de pagamento</div><div class="opts">${Object.entries(FORMA).filter(([k])=>!FORMA_AUTO.has(k)).map(([k,l])=>`<label><input type="radio" name="forma" value="${k}" ${forma0===k?'checked':''}>${l}</label>`).join('')}</div></div>
+    <div class="box" id="fpConta" ${isO?'hidden':''}>${pgBox(isC?'Como foi pago (sai de qual conta)':'Como o cliente pagou (entra em qual conta)')}</div>
     <div class="box" id="fpCred"><div class="row"><label class="fl">Entrada à vista (R$, opcional)<input name="entrada" id="oEntrada" inputmode="decimal" value="${num(o.entrada)?fnum(o.entrada):''}" placeholder="0"></label><label class="fl">Parcelas<input name="parcelas" id="oParcelas" inputmode="numeric" value="${o.parcelas||1}"></label><label class="fl">1º vencimento<input type="date" name="primeiroVenc" id="oVenc" value="${o.primeiroVenc||addDays(today(),30)}"></label></div><div class="hint" id="credPrev"></div></div>
     <div class="box" id="fpPerm"><label class="fl">O que foi dado/recebido em troca<input name="permutaDesc" id="oPerm" value="${esc(o.permutaDesc||'')}" placeholder="Ex.: 2 big bags de PP preto moído"></label><span class="hint">Troca/permuta não movimenta o caixa. Se o material dado em troca saiu do estoque, lance também a venda/ajuste correspondente.</span></div>
     <label class="fl">Observações<textarea name="obs" id="oObs">${esc(o.obs||'')}</textarea></label>`,
@@ -52,14 +63,14 @@ function formOp(col,id){
     const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);const fc=freteCobrado();
       $('#totLine').innerHTML=`<div><span>Peso total</span>${fkg(kgT)}</div><div><span>Média</span>${kgT?brl(t/kgT)+'/kg':'—'}</div>${fc?`<div><span>Material</span>${brl(t)}</div><div><span>Frete</span>${brl(fc)}</div>`:''}<div><span>Total</span>${brl(t+fc)}</div>`;
       if(!isC)lucro();
-      tb.querySelectorAll('tr').forEach(tr=>{const it=itens[+tr.dataset.i];tr.querySelector('[data-sub]').textContent=brl(num(it.kg)*num(it.precoKg))});credPrev();if($('#pgInfo'))pgInfo()};
+      tb.querySelectorAll('tr').forEach(tr=>{const it=itens[+tr.dataset.i];tr.querySelector('[data-sub]').textContent=brl(num(it.kg)*num(it.precoKg))});credPrev();if($('#pgInfo')){pgInfo();if(f.elements.forma)fp()}};
     // frete e lucro (só na venda)
     const freteTipo=()=>isC?'nenhum':(f.elements.freteTipo.value||'nenhum');
     // CIF não é cobrado do cliente: entra só como custo interno
     const freteCobrado=()=>0;
     const totalVenda=()=>r2(itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0)+freteCobrado());
-    const lucro=()=>{const ft=freteTipo();$('#frBox').hidden=ft==='nenhum';$('#frContaL').hidden=ft!=='cif';
-      $('#frHint').textContent=ft==='cif'?'CIF: a 3STRUZA paga o frete. Não entra no total do cliente nem no romaneio; fica só interno, como custo da venda e, se escolher uma conta, saída do caixa na data da venda.':ft==='fob'?'FOB: o cliente paga o frete direto ao transportador. O valor aparece no romaneio e não entra no lucro.':'';
+    const lucro=()=>{const ft=freteTipo();$('#frBox').hidden=ft==='nenhum';$('#frContaL').hidden=ft!=='cif'||isO;
+      $('#frHint').textContent=isO?(ft==='fob'?'FOB: o cliente paga o frete direto ao transportador. O valor aparece no orçamento.':ft==='cif'?'CIF: a 3STRUZA paga o frete. Não aparece para o cliente; entra só no cálculo do lucro.':''):ft==='cif'?'CIF: a 3STRUZA paga o frete. Não entra no total do cliente nem no romaneio; fica só interno, como custo da venda e, se escolher uma conta, saída do caixa na data da venda.':ft==='fob'?'FOB: o cliente paga o frete direto ao transportador. O valor aparece no romaneio e não entra no lucro.':'';
       const cm=custosMedios();const v={itens:itens.map(i=>({...i,kg:num(i.kg)})),total:totalVenda(),frete:{tipo:ft,valor:num(fv(f,'freteValor'))},impostoPct:num(fv(f,'impostoPct'))};
       const m=margemVenda(v,cm);const T=v.total,kg=itens.reduce((a,i)=>a+num(i.kg),0);const mat=r2(T-freteCobrado());
       const alvoM=num(fv(f,'margemAlvo'));const tx=v.impostoPct/100;
@@ -72,7 +83,7 @@ function formOp(col,id){
         <div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:16px"><span><b>Lucro da venda</b></span><b class="num ${m.margem<0?'neg':'pos'}">${brl(m.margem)} <span style="font-size:13px">${T?'· '+fnum(m.margem/T*100,1)+'%':''}</span></b></div>
         ${m.semCusto?'<div class="hint">* Algum material ainda não tem custo (sem compra ou ajuste com custo/kg).</div>':''}${sug}</div>`;
       const ap=$('#aplPreco');if(ap)ap.onclick=()=>{itens[0].precoKg=+ap.dataset.p;drawRows()}};
-    const credPrev=()=>{const n=Math.max(1,parseInt(fv(f,'parcelas'))||1);const ent=num(fv(f,'entrada'));const t=totalVenda()-ent;const v=fv(f,'primeiroVenc')||today();
+    const credPrev=()=>{const n=Math.max(1,parseInt(fv(f,'parcelas'))||1);const ent=num(fv(f,'entrada'));const t=totalVenda()-ent-(isC||isO?0:num(fv(f,'usoAdiant')));const v=fv(f,'primeiroVenc')||today();
       $('#credPrev').textContent=t>0?`${ent>0?'Entrada de '+brl(ent)+' no caixa + ':''}${n}x de cerca de ${brl(t/n)} · ${isC?'vai para Contas a pagar':'vai para Contas a receber'} de ${fd(v)} até ${fd(addMonths(v,n-1))}`:''};
     tb.addEventListener('input',e=>{const tr=e.target.closest('tr');if(!tr)return;const it=itens[+tr.dataset.i];const k=e.target.dataset.k;
       if(k==='qtd'||k==='pesoUn'||k==='kg'||k==='precoKg'){it[k]=e.target.value;if(k==='qtd'||k==='pesoUn'){it.kg=r2(num(it.qtd)*num(it.pesoUn));tr.querySelector('[data-k=kg]').value=fnum(it.kg)}
@@ -81,32 +92,44 @@ function formOp(col,id){
       if(k==='tipo'||k==='cor'||k==='embalagem'){it[k]=e.target.value;if(k==='embalagem'){if(it.embalagem==='granel'){it.qtd=0;it.pesoUn=0}else{it.pesoUn=it.embalagem==='saco'?c.pesoSaco:c.pesoBag;it.qtd=it.qtd||1;it.kg=r2(num(it.qtd)*num(it.pesoUn))}}drawRows()}});
     tb.addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(b){itens.splice(+b.dataset.rm,1);drawRows()}});
     $('#addIt').onclick=()=>{const l=itens[itens.length-1]||{};itens.push({tipo:l.tipo||c.tipos[0],cor:c.cores[0],embalagem:l.embalagem||'bigbag',qtd:1,pesoUn:l.pesoUn||c.pesoBag,kg:l.pesoUn||c.pesoBag,precoKg:l.precoKg||''});drawRows()};
-    const alvo=()=>{const v=f.elements.forma.value;return r2(v==='credito'?num(fv(f,'entrada')):totalVenda())};
+    // crédito do cliente usado na venda: abate do valor à vista (ou do que vai a prazo)
+    const pid=()=>fv(f,'parceiroId');const credDisp=()=>isC||isO||pid()==='__novo'||!pid()?0:creditoCliente(pid(),id);
+    const uso=()=>isC||isO||f.elements.forma.value==='permuta'?0:r2(num(fv(f,'usoAdiant')));
+    const alvo=()=>{const v=f.elements.forma.value;return r2(v==='credito'?num(fv(f,'entrada')):totalVenda()-uso())};
+    const adInfo=()=>{if(isC||isO)return;const d=credDisp();$('#adBox').hidden=!(d>0.005||uso()>0)||f.elements.forma.value==='permuta';
+      const u=uso();$('#adHint').textContent=`Este cliente tem ${brl(d)} de crédito.${u?` Usando ${brl(u)}, ${u>d+0.005?'passa do crédito disponível.':'sobram '+brl(d-u)+'.'} ${f.elements.forma.value==='credito'?'O resto vai para entrada e parcelas.':'O cliente paga '+brl(Math.max(0,totalVenda()-u))+'.'}`:''}`};
     if(!isC){f.querySelectorAll('[name=freteTipo]').forEach(r=>r.addEventListener('change',totals));['frValor','oImp','oMargem'].forEach(k=>{$('#'+k).addEventListener('input',totals);$('#'+k).addEventListener('change',totals)})}
     const PG=pgMount(pags,alvo,isC),pgInfo=PG.info;f.__pags=()=>pags;
-    const fp=()=>{const v=f.elements.forma.value;$('#fpConta').hidden=!(AVISTA.has(v)||(v==='credito'&&num(fv(f,'entrada'))>0));$('#fpCred').hidden=v!=='credito';$('#fpPerm').hidden=v!=='permuta'};
+    const fp=()=>{const v=f.elements.forma.value;$('#fpConta').hidden=isO||!((AVISTA.has(v)&&alvo()>0.005)||(v==='credito'&&num(fv(f,'entrada'))>0));adInfo();$('#fpCred').hidden=v!=='credito';$('#fpPerm').hidden=v!=='permuta'};
     f.querySelectorAll('[name=forma]').forEach(r=>r.addEventListener('change',()=>{fp();const v=f.elements.forma.value;if(MEIO[v]&&pags.length===1&&pags[0].meio!==v){pags[0].meio=v;const d=defaultConta(v);if(d&&!id)pags[0].contaId=d;PG.draw()}pgInfo()}));
     $('#oParcelas').addEventListener('input',credPrev);$('#oEntrada').addEventListener('input',()=>{credPrev();fp();pgInfo()});$('#oVenc').addEventListener('change',credPrev);
-    $('#oParc').addEventListener('change',e=>{$('#novoParc').hidden=e.target.value!=='__novo'});
+    $('#oParc').addEventListener('change',e=>{$('#novoParc').hidden=e.target.value!=='__novo';fp();pgInfo()});
+    if(!isC&&!isO){$('#oUso').addEventListener('input',()=>{fp();pgInfo();credPrev()});
+      $('#usoTudo').onclick=()=>{const t=f.elements.forma.value==='credito'?totalVenda()-num(fv(f,'entrada')):totalVenda();$('#oUso').value=fnum(Math.max(0,Math.min(credDisp(),r2(t))));fp();pgInfo();credPrev()}}
     fp();drawRows();PG.draw();
   },onSubmit:async f=>{
     let parceiroId=fv(f,'parceiroId');
     if(!parceiroId)throw`Selecione o ${isC?'fornecedor':'cliente'}.`;
     const its=itens.map(i=>({tipo:i.tipo,cor:i.cor,embalagem:i.embalagem,qtd:i.embalagem==='granel'?0:num(i.qtd),pesoUn:i.embalagem==='granel'?0:num(i.pesoUn),kg:r2(num(i.kg)),precoKg:num(i.precoKg)}));
     if(its.some(i=>i.kg<=0))throw'Todo item precisa ter peso maior que zero.';
-    if(its.some(i=>i.precoKg<=0)&&f.elements.forma.value!=='permuta')throw'Informe o preço por kg de todos os itens.';
+    if(its.some(i=>i.precoKg<=0)&&(isO||f.elements.forma.value!=='permuta'))throw'Informe o preço por kg de todos os itens.';
     const forma=f.elements.forma.value;
     const totalMat=r2(its.reduce((a,i)=>a+i.kg*i.precoKg,0)),totalKg=r2(its.reduce((a,i)=>a+i.kg,0));
     let frete=null,impostoPct=0,margemAlvo='';
     if(!isC){const tp=f.elements.freteTipo.value||'nenhum';const fvv=r2(num(fv(f,'freteValor')));
       if(tp!=='nenhum'&&fvv<0)throw'Valor do frete inválido.';
-      frete=tp==='nenhum'?null:{tipo:tp,valor:fvv,cobrar:false,contaId:tp==='cif'?fv(f,'freteConta'):'',transportadora:fv(f,'freteTransp'),placa:fv(f,'fretePlaca'),motorista:fv(f,'freteMotorista')};
+      frete=tp==='nenhum'?null:{tipo:tp,valor:fvv,cobrar:false,contaId:tp==='cif'&&!isO?fv(f,'freteConta'):'',transportadora:fv(f,'freteTransp'),placa:fv(f,'fretePlaca'),motorista:fv(f,'freteMotorista')};
       impostoPct=num(fv(f,'impostoPct'));if(impostoPct<0||impostoPct>=100)throw'Impostos precisam ficar entre 0 e 100%.';
       margemAlvo=fv(f,'margemAlvo')===''?'':num(fv(f,'margemAlvo'))}
     const total=totalMat;
     let novoParc=null;
     if(parceiroId==='__novo'){const nome=fv(f,'np_nome');if(!nome)throw'Informe o nome do novo cadastro.';parceiroId=nid();
       novoParc={id:parceiroId,nome,pessoa:f.elements.np_pessoa.value,documento:fv(f,'np_documento'),fornecedor:isC,cliente:!isC}}
+    if(isO){if(novoParc)await put('parceiros',novoParc);
+      else{const p=byId('parceiros',parceiroId);if(p&&!p.cliente)await put('parceiros',{...p,cliente:true})}
+      const rec={...o,id:id||nid(),numero:id?o.numero:await proximoNumero(col),data:fv(f,'data')||today(),parceiroId,itens:its,total,totalKg,totalMat,frete,impostoPct,margemAlvo,
+        validade:fv(f,'validade'),condicao:fv(f,'condicao'),obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+      await put(col,rec);toast(`${rotOp(col,rec)} salvo`);return}
     // venda acima do estoque: avisa e pede um segundo clique para confirmar
     if(!isC){const falta=faltaEstoque(its,id);const sig=JSON.stringify(its.map(i=>[i.tipo,i.cor,i.kg]));
       if(falta.length&&f.dataset.semEstoque!==sig){f.dataset.semEstoque=sig;const btn=f.querySelector('[type=submit]');if(btn)btn.textContent='Vender mesmo assim';
@@ -116,21 +139,27 @@ function formOp(col,id){
     const primeiroVenc=forma==='credito'?(fv(f,'primeiroVenc')||today()):'';
     // a prazo pode ter entrada à vista; o resto vira parcelas
     const entrada=forma==='credito'?r2(num(fv(f,'entrada'))):0;
-    if(entrada<0||(forma==='credito'&&entrada>=total-0.005&&total>0))throw'A entrada precisa ser menor que o total. Se foi tudo à vista, escolha Dinheiro ou PIX.';
-    const usaConta=AVISTA.has(forma)||entrada>0;
-    const valorCaixa=AVISTA.has(forma)?total:entrada;
+    // crédito do cliente (adiantamento) usado como abatimento
+    const usoAdiant=isC||forma==='permuta'?0:r2(num(fv(f,'usoAdiant')));
+    if(usoAdiant<0)throw'Valor do crédito usado inválido.';
+    if(usoAdiant>0){const disp=parceiroId==='__novo'?0:creditoCliente(parceiroId,id);
+      if(usoAdiant>disp+0.005)throw`O cliente só tem ${brl(disp)} de crédito de adiantamento.`;
+      if(usoAdiant>total-entrada+0.005)throw`O crédito usado (${brl(usoAdiant)}) passa do valor da venda${entrada?' menos a entrada':''} (${brl(total-entrada)}).`}
+    if(entrada<0||(forma==='credito'&&entrada>=total-usoAdiant-0.005&&total>0))throw'A entrada precisa ser menor que o total. Se foi tudo à vista, escolha Dinheiro ou PIX.';
+    const valorCaixa=AVISTA.has(forma)?r2(total-usoAdiant):entrada;
+    const usaConta=(AVISTA.has(forma)&&valorCaixa>0.005)||entrada>0;
     const pagamentos=usaConta?pgCollect(f.__pags(),valorCaixa,forma==='credito'?'à entrada':'ao total'):[];
     const contaId=pagamentos[0]?.contaId||'';
     // à vista com formas diferentes fica como "Vários"
-    const formaRec=AVISTA.has(forma)?(new Set(pagamentos.map(p=>p.meio)).size===1?pagamentos[0].meio:'misto'):forma;
-    const aPrazo=forma==='credito'?r2(total-entrada):0;
+    const formaRec=AVISTA.has(forma)?(!pagamentos.length?'adiantamento':new Set(pagamentos.map(p=>p.meio)).size===1?pagamentos[0].meio:'misto'):forma;
+    const aPrazo=forma==='credito'?r2(total-entrada-usoAdiant):0;
     const lado=isC?'pagar':'receber',categoria=isC?'Compra de material':'Venda de material';
     // edição: decide o que fazer com as parcelas já existentes, sem perder baixas
     let plano='novo';const lk=id?linked(id):{tit:[],mov:[]};const pagos=lk.tit.filter(t=>t.pago);
     if(id&&pagos.length){
       if(o.forma!=='credito'||forma!=='credito')throw`Esta ${isC?'compra':'venda'} tem parcelas já ${isC?'pagas':'recebidas'}. Estorne-as em Contas a ${lado} antes de mudar a forma de pagamento.`;
       const pagoSoma=r2(pagos.reduce((a,t)=>a+num(t.valor),0));
-      if(r2(num(o.total)-num(o.entrada))===aPrazo&&num(o.parcelas)===parcelas&&o.primeiroVenc===primeiroVenc)plano='manter';
+      if(r2(num(o.total)-num(o.entrada)-num(o.usoAdiant))===aPrazo&&num(o.parcelas)===parcelas&&o.primeiroVenc===primeiroVenc)plano='manter';
       else{if(aPrazo<pagoSoma-0.005)throw`Já foram ${isC?'pagos':'recebidos'} ${brl(pagoSoma)} em parcelas, mais que o novo valor a prazo de ${brl(aPrazo)}. Estorne alguma parcela antes.`;
         if(aPrazo-pagoSoma>0.005&&parcelas<=pagos.length)throw`${pagos.length} parcela(s) já ${isC?'paga(s)':'recebida(s)'}. Use mais de ${pagos.length} parcelas para o valor que falta.`;
         plano='refazerAbertas'}}
@@ -139,7 +168,7 @@ function formOp(col,id){
     const numero=id?o.numero:await proximoNumero(col);
     // venda: sequência do dia; muda só se a data mudar
     const seq=isC?undefined:(id&&o.data===data?seqDia(o):proximoSeqDia(data,opId));
-    const rec={...o,id:opId,numero,...(isC?{}:{seqDia:seq}),data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,frete,impostoPct,margemAlvo}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+    const rec={...o,id:opId,numero,...(isC?{}:{seqDia:seq}),data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,frete,impostoPct,margemAlvo,usoAdiant,...(orc?{orcamentoId:orc.id}:{})}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
     await put(col,rec);
     const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(novoParc?.nome||'');
     const desc=`${rotOp(col,rec)} · ${pn}`;
@@ -164,11 +193,15 @@ function formOp(col,id){
     for(const [i,pg] of pagamentos.entries()){const m0=proprios[i];
       await put('movimentos',{...(m0||{id:nid(),criadoEm:Date.now()}),tipo:isC?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:desc+` (${forma==='credito'?'entrada · ':''}${pgTxt(pg,isC)})`+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria,parceiroId,ref:{col,id:opId}})}
     for(const m of proprios.slice(pagamentos.length))await del('movimentos',m.id);
+    // orçamento que virou venda fica marcado como vendido
+    if(orc)await put('orcamentos',{...orc,vendaId:opId});
     toast(`${rotOp(col,rec)} salva`);
   }});
 }
 async function delOp(col,id){
-  const o=byId(col,id);const{tit,mov}=linked(id);
+  const o=byId(col,id);
+  if(col==='orcamentos'){if(await ask('Excluir orçamento',`Excluir o orçamento nº ${o.numero} de ${fd(o.data)} (${brl(o.total)})? Não mexe no estoque nem no caixa${o.vendaId&&byId('vendas',o.vendaId)?'; a venda feita a partir dele continua':''}.`,[{label:'Excluir',cls:'danger',v:true}])){await del(col,id);toast('Excluído')}return}
+  const{tit,mov}=linked(id);
   const ok=await ask(`Excluir ${rotOp(col,o).toLowerCase()}`,`Excluir a ${col==='compras'?'compra':'venda'} de ${fd(o.data)} (${brl(o.total)})? O estoque será recalculado${mov.length?`, ${mov.length} lançamento(s) de caixa`:''}${tit.length?`${mov.length?' e':','} ${tit.length} parcela(s)`:''} também serão removidos.`,[{label:'Excluir',cls:'danger',v:true}]);
   if(!ok)return;await removeLinked(id);await del(col,id);toast('Excluído');
 }

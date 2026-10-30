@@ -9,7 +9,7 @@ import {brl,esc,fd,fkg} from '../util.js';
 
 /* ---------- Histórico de alterações ---------- */
 const HIST={rows:[],loaded:false,loading:false,more:false,err:''};
-const COLNOME={contas:'Conta de saldo',parceiros:'Cadastro',movimentos:'Caixa',compras:'Compra',vendas:'Venda',titulos:'Conta a pagar/receber',ajustes:'Ajuste de estoque',config:'Configurações'};
+const COLNOME={contas:'Conta de saldo',parceiros:'Cadastro',movimentos:'Caixa',compras:'Compra',vendas:'Venda',titulos:'Conta a pagar/receber',ajustes:'Ajuste de estoque',config:'Configurações',orcamentos:'Orçamento',adiantamentos:'Adiantamento de cliente'};
 const histBtn=(col,id)=>MODE==='supa'?`<button class="btn sm" data-act="hist" data-col="${col}" data-id="${id}" title="Histórico deste registro" aria-label="Histórico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>`:'';
 async function loadHist(reset){
   if(MODE!=='supa'||HIST.loading)return;HIST.loading=true;if(reset){HIST.rows=[];HIST.more=false}
@@ -21,13 +21,13 @@ async function loadHist(reset){
   if(error){HIST.err=/historico/.test(error.message||'')?'missing':error.message;render();return}
   HIST.err='';HIST.rows.push(...data);HIST.more=data.length===100;render();
 }
-const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',frete:'Frete',impostoPct:'Impostos (%)',margemAlvo:'Margem desejada (%)',totalMat:'Total do material',pagamentos:'Contas do pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag'};
+const LBL={nome:'Nome',tipo:'Tipo',detalhe:'Detalhe',saldoInicial:'Saldo inicial',ativo:'Ativa',valor:'Valor',data:'Data',descricao:'Descrição',categoria:'Categoria',contaId:'Conta',contaDestinoId:'Conta destino',parceiroId:'Cliente/fornecedor',vencimento:'Vencimento',pago:'Pago',pagoEm:'Pago em',valorPago:'Valor pago',itens:'Itens',total:'Total',totalKg:'Peso total',forma:'Forma de pagamento',frete:'Frete',impostoPct:'Impostos (%)',margemAlvo:'Margem desejada (%)',totalMat:'Total do material',pagamentos:'Contas do pagamento',parcelas:'Parcelas',primeiroVenc:'1º vencimento',numero:'Número',documento:'CPF/CNPJ',telefone:'Telefone',email:'E-mail',cidade:'Cidade',uf:'UF',endereco:'Endereço',fornecedor:'Fornecedor',cliente:'Cliente',obs:'Observações',natureza:'Natureza',modo:'Lançamento',parcela:'Parcela',pessoa:'Pessoa',sentido:'Sentido',kg:'Peso',qtd:'Quantidade',pesoUn:'Peso embalagem',embalagem:'Embalagem',cor:'Cor',custoKg:'Custo/kg',motivo:'Motivo',permutaDesc:'Troca/permuta',tipos:'Tipos de material',cores:'Cores',catPagar:'Categorias a pagar',catReceber:'Categorias a receber',pesoSaco:'Peso do saco',pesoBag:'Peso do big bag',validade:'Válido até',condicao:'Condição de pagamento',vendaId:'Venda',usoAdiant:'Abatido do adiantamento',orcamentoId:'Orçamento'};
 const SKIP=new Set(['criadoEm','seqDia','grupo','ref','movimentoId','exemplo','totalParcelas']);
-const MONEY=new Set(['saldoInicial','valor','valorPago','total','custoKg','precoKg']);
+const MONEY=new Set(['saldoInicial','valor','valorPago','total','custoKg','precoKg','usoAdiant']);
 function fmtVal(k,v){
   if(v===undefined||v===null||v==='')return '—';
   if(MONEY.has(k))return brl(v);
-  if(['data','vencimento','pagoEm','primeiroVenc'].includes(k))return fd(v);
+  if(['data','vencimento','pagoEm','primeiroVenc','validade'].includes(k))return fd(v);
   if(['kg','totalKg','pesoSaco','pesoBag','pesoUn'].includes(k))return fkg(v);
   if(typeof v==='boolean')return v?'Sim':'Não';
   if(k==='contaId'||k==='contaDestinoId')return contaNome(v);
@@ -38,6 +38,9 @@ function fmtVal(k,v){
   if(k==='parceiroId')return parcNome(v);
   if(k==='forma')return FORMA[v]||v;
   if(k==='tipo'&&TIPOCONTA[v])return TIPOCONTA[v];
+  if(k==='tipo'&&v==='devolucao')return 'Devolução';
+  if(k==='vendaId'){const x=byId('vendas',v);return x?'Venda '+codVenda(x):'—'}
+  if(k==='orcamentoId'){const x=byId('orcamentos',v);return x?'Orçamento nº '+x.numero:'—'}
   if(k==='tipo'&&({entrada:1,saida:1,transferencia:1})[v])return {entrada:'Entrada',saida:'Saída',transferencia:'Transferência'}[v];
   if(k==='sentido')return v==='saida'?'Saída':'Entrada';
   if(k==='natureza')return v==='fixa'?'Fixa':'Variável';
@@ -58,6 +61,8 @@ function descReg(col,d){
     case 'vendas':return `Venda ${codVenda(d)} · ${parcNome(d.parceiroId)} · ${brl(d.total)}`;
     case 'titulos':return `${d.lado==='pagar'?'Conta a pagar':'Conta a receber'} “${d.descricao}”${d.totalParcelas>1?` ${d.parcela}/${d.totalParcelas}`:''}${d.renova?' (mensal)':''} · ${brl(d.valor)} · venc. ${fd(d.vencimento)}`;
     case 'ajustes':return `${d.sentido==='saida'?'Saída':'Entrada'} de ${fkg(d.kg)} de ${d.tipo} ${d.cor}${d.motivo?' · '+d.motivo:''}`;
+    case 'orcamentos':return `Orçamento nº ${d.numero} · ${parcNome(d.parceiroId)} · ${brl(d.total)}`;
+    case 'adiantamentos':return `${d.tipo==='devolucao'?'Devolução de adiantamento':'Adiantamento'} nº ${d.numero} · ${parcNome(d.parceiroId)} · ${brl(d.valor)}`;
     case 'config':return 'Configurações gerais';
   }return '';
 }

@@ -5,16 +5,17 @@ import {formAjuste} from './forms/ajuste.js';
 import {formConta} from './forms/conta.js';
 import {formMov} from './forms/movimento.js';
 import {delOp,formOp} from './forms/operacao.js';
+import {delAdiant,formAdiant} from './forms/adiantamento.js';
 import {formParc,verParc} from './forms/parceiro.js';
 import {delTitulo,estornar,formBaixa,formTitulo} from './forms/titulo.js';
-import {extratoCaixa,recibo,romaneio} from './impressos.js';
+import {extratoCaixa,orcamento,recibo,reciboAdiant,romaneio} from './impressos.js';
 import {ask,fv,modal,modalClose,toast} from './modal.js';
 import {render} from './render.js';
 import {baixarCSV} from './telas/caixa.js';
 import {saveCfg} from './telas/configuracoes.js';
 import {HIST,descReg,loadHist,verHist} from './telas/historico.js';
 import {csvRel,csvTit} from './telas/relatorios.js';
-import {rotOp} from './regras.js';
+import {NOMEOP,rotOp} from './regras.js';
 import {addMonths,brl,esc,num} from './util.js';
 
 /* ===================== eventos ===================== */
@@ -30,7 +31,7 @@ document.addEventListener('click',async e=>{
     case 'delMov':{const m=byId('movimentos',id);
       if(m.ref){const src=m.ref.col==='titulos'?byId('titulos',m.ref.id):byId(m.ref.col,m.ref.id);
         if(m.ref.col==='titulos'&&src){await estornar(src.id);break}
-        if(src){await ask('Lançamento vinculado',`Este lançamento veio da ${rotOp(m.ref.col,src).toLowerCase()}. Para removê-lo, edite ou exclua a ${m.ref.col==='compras'?'compra':'venda'}.`,[]);break}}
+        if(src){await ask('Lançamento vinculado',`Este lançamento veio da ${rotOp(m.ref.col,src).toLowerCase()}. Para removê-lo, edite ou exclua ${NOMEOP[m.ref.col]||'a origem'}.`,[]);break}}
       if(await ask('Excluir movimentação',`Excluir <b>${esc(m.descricao)}</b> de ${brl(m.valor)}?`,[{label:'Excluir',cls:'danger',v:true}])){await del('movimentos',id);toast('Excluído')}break}
     case 'filtroConta':UI.filtroConta=UI.filtroConta===id?'':id;render();break;
     case 'per':UI.per=b.dataset.v;render();break;
@@ -44,10 +45,14 @@ document.addEventListener('click',async e=>{
     case 'baixar':formBaixa(id);break;case 'estornar':await estornar(id);break;case 'delTitulo':await delTitulo(id);break;
     case 'ocultar':UI.ocultar=!UI.ocultar;try{localStorage.setItem('3struza-ocultar',UI.ocultar?'1':'0')}catch(e){}render();break;
     case 'novaCompra':formOp('compras');break;case 'novaVenda':formOp('vendas');break;
+    case 'novoOrc':formOp('orcamentos');break;case 'orcVenda':formOp('vendas',null,{orcId:id});break;case 'orcImp':orcamento(id);break;
+    case 'orcFiltro':UI.orcFiltro=b.dataset.v;render();break;
+    case 'novoAdiant':formAdiant(null,{tipo:b.dataset.t,parceiroId:b.dataset.p,vendaId:b.dataset.v});break;case 'editAdiant':formAdiant(id);break;
+    case 'delAdiant':await delAdiant(id);break;case 'adImp':reciboAdiant(id);break;
     case 'editOp':formOp(b.dataset.col,id);break;case 'delOp':await delOp(b.dataset.col,id);break;
     case 'novoParc':formParc();break;case 'editParc':if(modalClose)modalClose();formParc(id);break;case 'verParc':verParc(id);break;
-    case 'delParc':{const p=byId('parceiros',id);const usado=['compras','vendas','titulos','movimentos'].some(c=>S[c].some(x=>x.parceiroId===id));
-      if(usado){await ask('Cadastro em uso',`<b>${esc(p.nome)}</b> tem compras, vendas, contas ou lançamentos de caixa vinculados e não pode ser excluído.`,[]);break}
+    case 'delParc':{const p=byId('parceiros',id);const usado=['compras','vendas','titulos','movimentos','orcamentos','adiantamentos'].some(c=>S[c].some(x=>x.parceiroId===id));
+      if(usado){await ask('Cadastro em uso',`<b>${esc(p.nome)}</b> tem compras, vendas, orçamentos, adiantamentos, contas ou lançamentos de caixa vinculados e não pode ser excluído.`,[]);break}
       if(await ask('Excluir cadastro',`Excluir <b>${esc(p.nome)}</b>?`,[{label:'Excluir',cls:'danger',v:true}])){await del('parceiros',id);toast('Cadastro excluído')}break}
     case 'ajuste':formAjuste();break;
     case 'hist':verHist(b.dataset.col,id);break;
