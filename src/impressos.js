@@ -30,8 +30,8 @@ function orcamento(id){
     ${fr.tipo==='fob'?`<p><b>Frete:</b> FOB · por conta do cliente${num(fr.valor)?' · estimado em '+brl(fr.valor):''}${fr.transportadora?' · '+esc(fr.transportadora):''}</p>`:fr.tipo==='cif'?'<p><b>Frete:</b> CIF · entrega por conta da 3STRUZA</p>':''}
     ${o.condicao?`<p><b>Condição de pagamento:</b> ${esc(o.condicao)}</p>`:''}${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
     <p class="muted">Orçamento sujeito à disponibilidade de estoque na data da confirmação do pedido.</p>
-    <div class="ass"><div>3STRUZA</div><div>De acordo · ${esc(p.nome||'Cliente')}</div></div></body></html>`;
-  verImpresso('Orçamento nº '+o.numero,html);
+    <div class="ass"><div>3STRUZA</div><div>De acordo · ${assCli(p.nome)}</div></div></body></html>`;
+  verImpresso('Orçamento nº '+o.numero,html,'Cliente');
 }
 // recibo de adiantamento (ou de devolução) de cliente
 function reciboAdiant(id){
@@ -43,12 +43,21 @@ function reciboAdiant(id){
     <table><thead><tr><th>Forma</th><th>Conta</th><th class="r">Valor</th></tr></thead><tbody>${(a.pagamentos||[]).map(x=>`<tr><td>${esc(pgTxt(x,dev))}</td><td>${esc(contaNome(x.contaId))}</td><td class="r">${brl(x.valor)}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="2"><b>Total</b></td><td class="r tot">${brl(a.valor)}</td></tr></tfoot></table>
     <p><b>Crédito atual do cliente:</b> ${brl(creditoCliente(a.parceiroId))}</p>${a.obs?`<p><b>Observações:</b> ${esc(a.obs)}</p>`:''}
-    <div class="ass"><div>3STRUZA</div><div>${esc(p.nome||'Cliente')}</div></div></body></html>`;
-  verImpresso(rotOp('adiantamentos',a),html);
+    <div class="ass"><div>3STRUZA</div><div>${assCli(p.nome)}</div></div></body></html>`;
+  verImpresso(rotOp('adiantamentos',a),html,'Cliente');
 }
 // mostra o documento dentro do sistema; o botão imprime só o documento
-function verImpresso(titulo,html){
-  html=html.replace(/<div class="noprint"[^]*?<\/div>/,'');
+// linha de assinatura do cliente, com nome e data
+const assCli=(nome,rot='Cliente')=>`${esc(nome||rot)}<br><span class="muted">assinatura · data ___/___/_____</span>`;
+// documentos para o cliente assinar saem em duas vias na mesma impressão: uma fica com a 3STRUZA e outra com o cliente
+function duasVias(html,outro='Cliente'){
+  const ini=html.indexOf('<body>')+6,fim=html.lastIndexOf('</body>');const corpo=html.slice(ini,fim);
+  const via=(n,quem)=>`<div class="via${n>1?' via2':''}"><div class="via-tag">${n}ª via · ${quem}</div>${corpo}</div>`;
+  return html.slice(0,ini).replace('</style>','.via-tag{text-align:right;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#677085;margin-bottom:6px}.via2{margin-top:40px;padding-top:24px;border-top:2px dashed #b9c0cc}@media print{.via2{break-before:page;margin-top:0;padding-top:0;border-top:0}}</style>')
+    +via(1,'3STRUZA')+via(2,outro)+html.slice(fim)}
+// vias: quem recebe a 2ª via ('Cliente' ou 'Fornecedor'); vazio imprime uma via só
+function verImpresso(titulo,html,vias=''){
+  html=html.replace(/<div class="noprint"[^]*?<\/div>/,'');if(vias)html=duasVias(html,vias);
   const f=modal(esc(titulo),`<iframe id="impFrame" title="${esc(titulo)}" style="width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`,
     {wide:true,submit:'',extra:'<button type="button" class="btn pri" id="impPrint">Imprimir ou salvar em PDF</button>'});
   const fr=f.querySelector('#impFrame');fr.srcdoc=html;
@@ -74,8 +83,8 @@ function romaneio(id){
       <tfoot><tr><td colspan="4"><b>Total</b></td><td class="r"><b>${un?fnum(un,0):'—'}</b></td><td></td><td class="r"><b>${fkg(o.totalKg)}</b></td><td></td></tr></tfoot></table>
     <div class="grid"><div><b>Peso na balança (saída):</b> ____________ kg</div><div><b>Peso na balança (chegada):</b> ____________ kg</div></div>
     ${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
-    <div class="ass"><div>Expedição · 3STRUZA</div><div>Motorista${fr.motorista?' · '+esc(fr.motorista):''}</div><div>Recebido por · ${esc(p.nome||'cliente')}<br><span class="muted">data ___/___/_____</span></div></div></body></html>`;
-  verImpresso('Romaneio de transporte · Venda '+codVenda(o),html);
+    <div class="ass"><div>Expedição · 3STRUZA</div><div>Motorista${fr.motorista?' · '+esc(fr.motorista):''}</div><div>Recebido por · ${assCli(p.nome)}</div></div></body></html>`;
+  verImpresso('Romaneio de transporte · Venda '+codVenda(o),html,'Cliente');
 }
 function recibo(col,id){
   const o=byId(col,id);if(!o)return;const isC=col==='compras';const p=byId('parceiros',o.parceiroId)||{};const{tit}=linked(id);
@@ -95,8 +104,8 @@ function recibo(col,id){
     ${tabItens(o,true,uso?`<tr><td colspan="6">Abatido do adiantamento do cliente</td><td class="r">− ${brl(uso)}</td></tr><tr><td colspan="6"><b>Valor pago nesta venda</b></td><td class="r"><b>${brl(num(o.total)-uso)}</b></td></tr>`:'')}
     ${o.frete?.tipo==='fob'?`<p><b>Frete:</b> FOB · por conta do cliente${num(o.frete.valor)?' · '+brl(o.frete.valor):''}${o.frete.transportadora?' · '+esc(o.frete.transportadora):''}${o.frete.placa?' · placa '+esc(o.frete.placa):''}</p>`:''}
     <p><b>Pagamento:</b> ${uso&&o.forma!=='adiantamento'?brl(uso)+' do adiantamento + ':''}${pag}${(o.pagamentos||[]).length>1||o.pagamentos?.[0]?.meio==='cheque'?'<br>'+o.pagamentos.map(x=>esc(pgTxt(x,isC))+' '+brl(x.valor)).join('<br>'):''}</p>${o.obs?`<p><b>Observações:</b> ${esc(o.obs)}</p>`:''}
-    <div class="ass"><div>3STRUZA</div><div>${esc(p.nome||(isC?'Fornecedor':'Cliente'))}</div></div></body></html>`;
-  verImpresso(isC?'Comprovante · Compra #'+o.numero:'Recibo · Venda '+codVenda(o),html);
+    <div class="ass"><div>3STRUZA</div><div>${assCli(p.nome,isC?'Fornecedor':'Cliente')}</div></div></body></html>`;
+  verImpresso(isC?'Comprovante · Compra #'+o.numero:'Recibo · Venda '+codVenda(o),html,isC?'Fornecedor':'Cliente');
 }
 
 /* ---------- Extrato dos caixas para apresentar ---------- */

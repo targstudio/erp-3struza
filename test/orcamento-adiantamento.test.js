@@ -121,3 +121,12 @@ describe('impressos da venda',()=>{
     expect(h).not.toContain('R$');
   });
 });
+
+describe('duas vias',()=>{
+  beforeEach(()=>montar({...base(),vendas:[{id:'v1',numero:1,seqDia:1,data:'2026-10-20',parceiroId:'cli',itens:[item('PP Moído','Preto',1000,5)],total:5000,totalKg:1000,forma:'pix'}]}));
+  it('romaneio e recibo saem com via da 3STRUZA e via do cliente, cada uma com assinatura',()=>{
+    for(const abrir of [()=>romaneio('v1'),()=>recibo('vendas','v1')]){abrir();const h=impresso();
+      expect(h).toContain('1ª via · 3STRUZA');expect(h).toContain('2ª via · Cliente');
+      expect(h.match(/assinatura · data/g)).toHaveLength(2)}
+  });
+});
