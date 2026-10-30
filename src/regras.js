@@ -31,7 +31,8 @@ function estoque(){
   S.compras.forEach(c=>(c.itens||[]).forEach(it=>{const e=ensure(it);e.kg+=num(it.kg);e.un+=num(it.qtd);addCusto(it,num(it.kg),num(it.kg)*num(it.precoKg))}));
   S.ajustes.forEach(a=>{const e=ensure(a);const s=a.sentido==='saida'?-1:1;e.kg+=s*num(a.kg);e.un+=s*num(a.qtd);if(s>0&&num(a.custoKg))addCusto(a,num(a.kg),num(a.kg)*num(a.custoKg))});
   S.vendas.forEach(v=>(v.itens||[]).forEach(it=>{const e=ensure(it);e.kg-=num(it.kg);e.un-=num(it.qtd)}));
-  const rows=[...m.values()].map(e=>{const c=custo.get(e.tipo+'|'+e.cor);e.custoKg=c&&c.kg?c.v/c.kg:0;e.valor=e.kg*e.custoKg;return e});
+  const tp=new Map();custo.forEach((c,k)=>{const t=k.split('|')[0];const x=tp.get(t)||{kg:0,v:0};x.kg+=c.kg;x.v+=c.v;tp.set(t,x)});
+  const rows=[...m.values()].map(e=>{const c=custo.get(e.tipo+'|'+e.cor);const t=tp.get(e.tipo);e.custoKg=c&&c.kg?c.v/c.kg:t&&t.kg?t.v/t.kg:0;e.valor=e.kg*e.custoKg;return e});
   rows.sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.cor.localeCompare(b.cor)||a.embalagem.localeCompare(b.embalagem)||a.pesoUn-b.pesoUn);
   return rows;
 }
@@ -39,9 +40,17 @@ function estoque(){
 function custosMedios(){const m=new Map();const add=(it,kg,v)=>{const k=it.tipo+'|'+it.cor;const c=m.get(k)||{kg:0,v:0};c.kg+=kg;c.v+=v;m.set(k,c)};
   S.compras.forEach(c=>(c.itens||[]).forEach(it=>add(it,num(it.kg),num(it.kg)*num(it.precoKg))));
   S.ajustes.forEach(a=>{if(a.sentido!=='saida'&&num(a.custoKg))add(a,num(a.kg),num(a.kg)*num(a.custoKg))});
-  const out=new Map();m.forEach((c,k)=>out.set(k,c.kg?c.v/c.kg:0));return out}
+  // média só do tipo (sem a cor), para cor que nunca foi comprada; nunca uma média geral misturando grão e moído
+  const tp=new Map();m.forEach((c,k)=>{const t=k.split('|')[0];const e=tp.get(t)||{kg:0,v:0};e.kg+=c.kg;e.v+=c.v;tp.set(t,e)});
+  const out=new Map();m.forEach((c,k)=>out.set(k,c.kg?c.v/c.kg:0));tp.forEach((c,t)=>out.set(t,c.kg?c.v/c.kg:0));return out}
+const custoItem=(cm,it)=>cm.get(it.tipo+'|'+it.cor)||cm.get(it.tipo)||0;
+// peso, valor e preço médio de cada tipo de material (grão, moído…) nas compras ou vendas dadas
+function porMaterial(ops){const m=new Map();ops.forEach(o=>(o.itens||[]).forEach(it=>{if(!it.tipo)return;const e=m.get(it.tipo)||{tipo:it.tipo,kg:0,total:0,ids:new Set()};e.kg+=num(it.kg);e.total+=num(it.kg)*num(it.precoKg);e.ids.add(o.id);m.set(it.tipo,e)}));
+  return [...m.values()].map(e=>({tipo:e.tipo,kg:e.kg,total:r2(e.total),qtd:e.ids.size,medio:e.kg?e.total/e.kg:0})).sort((a,b)=>b.total-a.total||a.tipo.localeCompare(b.tipo))}
+// tipos de material que o parceiro já comprou ou vendeu com a gente
+const tiposParceiro=(col,pid)=>[...new Set(S[col].filter(x=>x.parceiroId===pid).flatMap(x=>(x.itens||[]).map(i=>i.tipo).filter(Boolean)))];
 // custo estimado e margem de uma venda (custo médio do material)
-function margemVenda(v,cm=custosMedios()){let mat=0,semCusto=false;(v.itens||[]).forEach(it=>{const c=cm.get(it.tipo+'|'+it.cor);if(!c)semCusto=true;mat+=num(it.kg)*(c||0)});
+function margemVenda(v,cm=custosMedios()){let mat=0,semCusto=false;(v.itens||[]).forEach(it=>{const c=custoItem(cm,it);if(!c)semCusto=true;mat+=num(it.kg)*c});
   const frete=v.frete?.tipo==='cif'?num(v.frete.valor):0,imposto=r2(num(v.total)*num(v.impostoPct)/100);
   const custo=r2(mat+frete+imposto);return{custo,custoMat:r2(mat),frete,imposto,margem:r2(num(v.total)-custo),semCusto}}
 const ultImposto=()=>{const v=S.vendas.slice().sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0)).find(v=>num(v.impostoPct));return v?fnum(v.impostoPct,2):''};
@@ -125,4 +134,4 @@ function genTitulos(base,modo,n,valor,venc){
   return out;
 }
 
-export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,FORMA_AUTO,NOMEOP,creditoCliente,creditosClientes,statusOrc,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};
+export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,FORMA_AUTO,NOMEOP,creditoCliente,creditosClientes,statusOrc,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,custoItem,porMaterial,tiposParceiro,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};

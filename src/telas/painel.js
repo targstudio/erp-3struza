@@ -1,6 +1,6 @@
 import {S,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
-import {TIPOCONTA,caixaPrevisto,creditosClientes,estoque,pillT,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
+import {TIPOCONTA,caixaPrevisto,creditosClientes,estoque,pillT,porMaterial,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
 import {colunas,linha} from '../graficos.js';
 import {needSetup} from '../render.js';
 import {ICON,addDays,addMonths,brl,esc,fd,fdShort,fkg,fnum,mLabel,mShort,num,today} from '../util.js';
@@ -32,7 +32,7 @@ function vPainel(){
   const vm=vendasPorMes(6,mes);
   const vAtual=vm[vm.length-1],vMedia=vm.reduce((a,v)=>a+v.total,0)/vm.length;
   const svgVendas=colunas({rotulo:'Vendas dos últimos 6 meses',largura:420,altura:230,series:[{cor:'var(--accent)'}],
-    grupos:vm.map(v=>({rot:mShort(v.mes),valores:[v.total],tip:`<b>${mLabel(v.mes)}</b>${tl('','Vendido',brl(v.total))}${tl('','Peso',fkg(v.kg))}${v.kg?tl('','Preço médio',brl(v.total/v.kg)+'/kg'):''}<div class="mu">${v.qtd} venda(s)</div>`}))});
+    grupos:vm.map(v=>({rot:mShort(v.mes),valores:[v.total],tip:`<b>${mLabel(v.mes)}</b>${tl('','Vendido',brl(v.total))}${tl('','Peso',fkg(v.kg))}${porMaterial(S.vendas.filter(x=>x.data.slice(0,7)===v.mes)).map(m=>tl('',esc(m.tipo),brl(m.medio)+'/kg')).join('')}<div class="mu">${v.qtd} venda(s)</div>`}))});
   const prox=ab.filter(x=>x.vencimento<=addDays(t,15)).sort((a,b)=>a.vencimento.localeCompare(b.vencimento)).slice(0,8);
   const porTipo={};est.forEach(e=>{if(e.kg>0)porTipo[e.tipo]=(porTipo[e.tipo]||0)+e.kg});
   const maxT=Math.max(1,...Object.values(porTipo));
@@ -70,9 +70,9 @@ function vPainel(){
   </div>
   <div class="grid kpis">
     <div class="kpi"><span>A pagar no mês</span>${ic('down','n')}<b>${brl(pagarMes)}</b><small>${atrasP.length?`<span class="neg">${atrasP.length} atrasado(s) · ${brl(atrasP.reduce((a,x)=>a+num(x.valor),0))}</span>`:'Nada atrasado'}</small></div>
-    <div class="kpi"><span>Valor em estoque</span>${ic('box','w')}<b>${brl(valTot)}</b><small>${fkg(kgTot)}${kgTot?` · custo médio ${brl(valTot/kgTot)}/kg`:''}${valTipo.length?'<br>'+valTipo.slice(0,2).map(([t,v])=>`${esc(t)} ${fkg(v.kg)} · ${brl(v.valor)}`).join('<br>'):''}</small></div>
-    <div class="kpi"><span>Vendas no mês</span>${ic('tag','p')}<b>${brl(vV)}</b><small>${fkg(kgV)} · ${vendMes.length} venda(s)${kgV?` · ${brl(vV/kgV)}/kg`:''}</small></div>
-    <div class="kpi"><span>Compras no mês</span>${ic('cart')}<b>${brl(vC)}</b><small>${fkg(kgC)} · ${compMes.length} compra(s)${kgC?` · ${brl(vC/kgC)}/kg`:''}</small></div>
+    <div class="kpi"><span>Valor em estoque</span>${ic('box','w')}<b>${brl(valTot)}</b><small>${fkg(kgTot)}${valTipo.length?'<br>'+valTipo.slice(0,3).map(([t,v])=>`${esc(t)} ${fkg(v.kg)} · custo médio ${brl(v.valor/v.kg)}/kg`).join('<br>'):''}</small></div>
+    <div class="kpi"><span>Vendas no mês</span>${ic('tag','p')}<b>${brl(vV)}</b><small>${fkg(kgV)} · ${vendMes.length} venda(s)${porMaterial(vendMes).map(m=>`<br>${esc(m.tipo)} ${brl(m.medio)}/kg`).join('')}</small></div>
+    <div class="kpi"><span>Compras no mês</span>${ic('cart')}<b>${brl(vC)}</b><small>${fkg(kgC)} · ${compMes.length} compra(s)${porMaterial(compMes).map(m=>`<br>${esc(m.tipo)} ${brl(m.medio)}/kg`).join('')}</small></div>
   </div>
   <div class="grid two">
     <div class="card"><div class="card-h"><h2>Entradas e saídas</h2><div class="sp legend"><span><i style="background:var(--pos)"></i>Entradas</span><span><i style="background:var(--neg)"></i>Saídas</span></div></div><div class="card-b">${svg}</div></div>

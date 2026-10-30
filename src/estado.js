@@ -4,7 +4,7 @@ import {HIST,loadHist} from './telas/historico.js';
 import {$,ICON,addMonths,mLabel,mShort,today} from './util.js';
 
 /* ===================== estado de UI ===================== */
-const UI={view:'painel',mes:today().slice(0,7),filtroT:'todos',busca:'',filtroConta:'',cadFiltro:'todos',estTipo:'',estCor:'',
+const UI={view:'painel',mes:today().slice(0,7),filtroT:'todos',busca:'',filtroConta:'',cadFiltro:'todos',opTipo:'',estTipo:'',estCor:'',
   per:'mes',histOpen:new Set(),histPer:'7',histUser:'',histCol:''};
 const VIEWS=[
   ['painel','Visão geral'],['g'],
