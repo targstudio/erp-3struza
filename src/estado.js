@@ -8,11 +8,11 @@ const UI={view:'painel',mes:today().slice(0,7),filtroT:'todos',busca:'',filtroCo
   per:'mes',histOpen:new Set(),histPer:'7',histUser:'',histCol:''};
 const VIEWS=[
   ['painel','Visão geral'],['g'],
-  ['caixa','Caixa'],['pagar','Contas a pagar'],['receber','Contas a receber'],['g'],
+  ['caixa','Caixa'],['pagar','Contas a pagar'],['receber','Contas a receber'],['cheques','Cheques'],['g'],
   ['compras','Compras'],['orcamentos','Orçamentos'],['vendas','Vendas'],['adiantamentos','Adiantamentos'],['estoque','Estoque'],['relatorios','Relatórios'],['g'],
   ['cadastros','Clientes e fornecedores'],['historico','Histórico'],['config','Configurações']
 ];
-const TITLES={painel:'Visão geral',caixa:'Caixa',pagar:'Contas a pagar',receber:'Contas a receber',compras:'Compras',orcamentos:'Orçamentos',vendas:'Vendas',adiantamentos:'Adiantamentos de clientes',estoque:'Estoque',relatorios:'Relatórios',cadastros:'Clientes e fornecedores',historico:'Histórico de alterações',config:'Configurações'};
+const TITLES={painel:'Visão geral',caixa:'Caixa',pagar:'Contas a pagar',receber:'Contas a receber',cheques:'Cheques a compensar',compras:'Compras',orcamentos:'Orçamentos',vendas:'Vendas',adiantamentos:'Adiantamentos de clientes',estoque:'Estoque',relatorios:'Relatórios',cadastros:'Clientes e fornecedores',historico:'Histórico de alterações',config:'Configurações'};
 
 function go(v){UI.view=v;UI.caixaLim=0;if(v==='historico'&&!HIST.loaded)loadHist(true);UI.busca='';try{history.replaceState(null,'','#'+v)}catch(e){}closeSide();render();window.scrollTo(0,0)}
 function closeSide(){$('#side').classList.remove('open');$('#scrim').classList.remove('on')}
@@ -31,8 +31,9 @@ function monthCtl(){return `<div class="month"><button data-act="mes" data-d="-1
 function renderNav(){
   const late=S.titulos.filter(t=>!t.pago&&t.vencimento<today());
   const lp=late.filter(t=>t.lado==='pagar').length,lr=late.filter(t=>t.lado==='receber').length;
+  const t0=today(),lc=S.movimentos.filter(m=>m.pendente&&(m.venceEm||m.cheque?.bomPara||m.data)<=t0).length;
   $('#nav').innerHTML=VIEWS.map(([k,l])=>k==='g'?`<div class="nav-sep"></div>`:
-    `<a data-go="${k}" class="${UI.view===k?'on':''}" tabindex="0"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${l}${k==='pagar'&&lp?`<span class="badge">${lp}</span>`:''}${k==='receber'&&lr?`<span class="badge">${lr}</span>`:''}</a>`).join('');
+    `<a data-go="${k}" class="${UI.view===k?'on':''}" tabindex="0"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${l}${k==='pagar'&&lp?`<span class="badge">${lp}</span>`:''}${k==='receber'&&lr?`<span class="badge">${lr}</span>`:''}${k==='cheques'&&lc?`<span class="badge">${lc}</span>`:''}</a>`).join('');
 }
 
 export {UI,VIEWS,TITLES,go,closeSide,PER,periodo,perCtl,monthCtl,renderNav};

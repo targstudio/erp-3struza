@@ -25,7 +25,8 @@ function pgMount(pags,alvo,isC){
       ${ch.titular==='terceiro'?`<label class="fl">Titular do cheque<input data-ck="nome" value="${esc(ch.nome||'')}" placeholder="Quem emitiu"></label>`:''}
       <label class="fl">Banco<input data-ck="banco" value="${esc(ch.banco||'')}"></label>
       <label class="fl">Nº do cheque<input data-ck="numero" value="${esc(ch.numero||'')}"></label>
-      <label class="fl">Bom para<input type="date" data-ck="bomPara" value="${esc(ch.bomPara||'')}"></label></div>`:''}</div>`}).join('');info()};
+      <label class="fl">Vencimento (bom para)<input type="date" data-ck="bomPara" value="${esc(ch.bomPara||'')}" required></label></div>
+    <div class="hint" style="margin:0">O cheque fica em <b>Cheques a compensar</b> e só entra no saldo do caixa quando você confirmar a compensação.</div>`:''}</div>`}).join('');info()};
   const R=$('#pgRows');
   const set=e=>{const r=e.target.closest('[data-pg]');if(!r)return null;const x=pags[+r.dataset.pg];
     if(e.target.dataset.pk)x[e.target.dataset.pk]=e.target.value;if(e.target.dataset.ck)x.cheque[e.target.dataset.ck]=e.target.value;return e.target};
@@ -42,6 +43,7 @@ function pgCollect(ps,alvo,rot){
   const soma=r2(ps.reduce((a,x)=>a+num(x.valor),0));
   const out=ps.map(x=>{const pg={meio:x.meio,contaId:x.contaId,valor:x.valor===''?r2(alvo-soma):r2(num(x.valor))};
     if(x.meio==='cheque'){const c=x.cheque||{};if(c.titular==='terceiro'&&!(c.nome||'').trim())throw'Informe o titular do cheque de terceiro.';
+      if(!c.bomPara)throw'Informe o vencimento (bom para) do cheque.';
       pg.cheque={titular:c.titular||'proprio',nome:c.titular==='terceiro'?(c.nome||'').trim():'',banco:(c.banco||'').trim(),numero:(c.numero||'').trim(),bomPara:c.bomPara||''}}
     return pg});
   if(out.some(x=>x.valor<=0))throw'Cada linha precisa ter valor maior que zero.';

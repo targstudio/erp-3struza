@@ -16,7 +16,7 @@ function relDados(){
       e.kg+=num(it.kg);e.receita+=num(it.kg)*num(it.precoKg);e.custo+=num(it.kg)*ck;mat.set(k,e)})});
   compras.forEach(c=>{const e=forn.get(c.parceiroId)||{n:0,kg:0,total:0};e.n++;e.kg+=num(c.totalKg);e.total+=num(c.total);forn.set(c.parceiroId,e)});
   // despesas e outras receitas pelo caixa (compra e venda de material ficam de fora: já entram pelo custo e pelas vendas)
-  S.movimentos.filter(dentro).forEach(m=>{if(m.ref?.col==='adiantamentos')return; // adiantamento não é receita: vira venda quando for abatido
+  S.movimentos.filter(m=>!m.pendente&&dentro(m)).forEach(m=>{if(m.ref?.col==='adiantamentos')return; // adiantamento não é receita: vira venda quando for abatido
     if(m.tipo==='saida'&&m.categoria!=='Compra de material'&&!m.ref?.frete){const k=m.categoria||'Sem categoria';desp.set(k,(desp.get(k)||0)+num(m.valor))}
     if(m.tipo==='entrada'&&m.categoria!=='Venda de material'&&!(m.ref&&m.ref.col==='vendas')&&!(m.ref&&m.ref.col==='titulos'&&byId('titulos',m.ref.id)?.ref?.col==='vendas')){const k=m.categoria||'Sem categoria';rec.set(k,(rec.get(k)||0)+num(m.valor))}});
   // preço médio separado por material: compra × venda de cada tipo (grão, moído…)

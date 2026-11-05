@@ -112,3 +112,4 @@ input.search,select.f{border:1px solid var(--line);border-radius:7px;padding:7px
 #view.ocultar :is(.hero .big,.hero .chip,.hero .meta,.hero .spark,.hero .foot,.kpi b,.kpi small,.patrimonio .num,.patrimonio b,.card .num,.card td.r,svg text,.chart,.bar){filter:blur(9px);user-select:none}
 #view.ocultar [data-tip]{pointer-events:none}
 .btn.olho{padding-left:10px;padding-right:10px}
+tr.late td{background:var(--notice)}

@@ -116,7 +116,7 @@ function extratoCaixa(){
   // efeito de um lançamento no saldo de uma conta
   const ef=(m,cid)=>m.tipo==='transferencia'?(m.contaDestinoId===cid?num(m.valor):0)-(m.contaId===cid?num(m.valor):0):m.contaId!==cid?0:m.tipo==='entrada'?num(m.valor):-num(m.valor);
   const efG=m=>fc?ef(m,fc):m.tipo==='entrada'?num(m.valor):m.tipo==='saida'?-num(m.valor):0;
-  const ord=S.movimentos.slice().sort((a,b)=>a.data.localeCompare(b.data)||(a.criadoEm||0)-(b.criadoEm||0));
+  const ord=S.movimentos.filter(m=>!m.pendente).sort((a,b)=>a.data.localeCompare(b.data)||(a.criadoEm||0)-(b.criadoEm||0));
   // posição de cada caixa no período
   const pos=(fc?contas.filter(c=>c.id===fc):contas).map(c=>{let antes=num(c.saldoInicial),e=0,sd=0;
     ord.forEach(m=>{const v=ef(m,c.id);if(!v)return;if(m.data<ini)antes+=v;else if(m.data<=fim){if(v>0)e+=v;else sd-=v}});
