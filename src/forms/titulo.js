@@ -1,3 +1,4 @@
+import {comCheque} from '../cheques.js';
 import {S,byId,cfg,del,parcNome,put} from '../dados.js';
 import {formConta} from './conta.js';
 import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
@@ -68,7 +69,7 @@ function formBaixa(id){
    onSubmit:async f=>{const v=num(fv(f,'valor'));if(v<=0)throw'Informe o valor.';
     const pagamentos=pgCollect(f.__pags(),r2(v),pagar?'ao valor pago':'ao valor recebido');const contaId=pagamentos[0].contaId;
     const mid=nid();const data=fv(f,'data')||today();const falta=r2(num(t.valor)-v);const parcial=falta>0.005&&f.elements.parcial.value==='sim';
-    for(const [i,pg] of pagamentos.entries())await put('movimentos',{id:i?nid():mid,tipo:pagar?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:t.descricao+(t.totalParcelas>1?` (${t.parcela}/${t.totalParcelas})`:'')+(pagamentos.length>1||pg.meio==='cheque'?` · ${pgTxt(pg,pagar)}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria:t.categoria||'',parceiroId:t.parceiroId||'',ref:{col:'titulos',id:t.id},criadoEm:Date.now()});
+    for(const [i,pg] of pagamentos.entries())await put('movimentos',comCheque({id:i?nid():mid,tipo:pagar?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:t.descricao+(t.totalParcelas>1?` (${t.parcela}/${t.totalParcelas})`:'')+(pagamentos.length>1||pg.meio==='cheque'?` · ${pgTxt(pg,pagar)}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria:t.categoria||'',parceiroId:t.parceiroId||'',ref:{col:'titulos',id:t.id},criadoEm:Date.now()}));
     if(parcial){const rid=nid();
       await put('titulos',{...t,valor:r2(v),valorOriginal:num(t.valorOriginal)||num(t.valor),restoId:rid,pago:true,pagoEm:data,valorPago:r2(v),contaId,pagamentos,movimentoId:mid});
       const{pago,pagoEm,valorPago,movimentoId,contaId,pagamentos,restoId,valorOriginal,...base}=t;

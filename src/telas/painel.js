@@ -2,6 +2,7 @@ import {S,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
 import {TIPOCONTA,caixaPrevisto,creditosClientes,estoque,pillT,porMaterial,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
 import {colunas,linha} from '../graficos.js';
+import {chequeTxt,chequesPendentes,chequesVencidos,efetivos,venceCheque} from '../cheques.js';
 import {needSetup} from '../render.js';
 import {ICON,addDays,addMonths,brl,esc,fd,fdShort,fkg,fnum,mLabel,mShort,num,today} from '../util.js';
 
@@ -20,7 +21,7 @@ function vPainel(){
   const vV=vendMes.reduce((a,v)=>a+num(v.total),0),vC=compMes.reduce((a,v)=>a+num(v.total),0);
   // chart
   const months=[];for(let i=5;i>=0;i--)months.push(addMonths(mes+'-01',-i).slice(0,7));
-  const data=months.map(m=>{let e=0,s=0;S.movimentos.forEach(x=>{if(x.data.slice(0,7)!==m)return;if(x.tipo==='entrada')e+=num(x.valor);if(x.tipo==='saida')s+=num(x.valor)});return{m,e,s}});
+  const data=months.map(m=>{let e=0,s=0;efetivos().forEach(x=>{if(x.data.slice(0,7)!==m)return;if(x.tipo==='entrada')e+=num(x.valor);if(x.tipo==='saida')s+=num(x.valor)});return{m,e,s}});
   const svg=colunas({rotulo:'Entradas e saídas dos últimos 6 meses',series:[{cor:'var(--pos)'},{cor:'var(--neg)'}],
     grupos:data.map(d=>({rot:mShort(d.m),valores:[d.e,d.s],tip:`<b>${mLabel(d.m)}</b>${tl('var(--pos)','Entradas',brl(d.e))}${tl('var(--neg)','Saídas',brl(d.s))}${tl('','Resultado',(d.e-d.s<0?'− ':'')+brl(Math.abs(d.e-d.s)))}`}))});
   // caixa previsto para os próximos 30 dias
@@ -38,7 +39,7 @@ function vPainel(){
   const maxT=Math.max(1,...Object.values(porTipo));
     // saldo ao fim de cada mês (sparkline do card azul)
   const saldoIni=S.contas.filter(c=>c.ativo!==false).reduce((a,c)=>a+num(c.saldoInicial),0);
-  const fimMes=months.map(m=>saldoIni+S.movimentos.reduce((a,x)=>x.data.slice(0,7)<=m?(x.tipo==='entrada'?a+num(x.valor):x.tipo==='saida'?a-num(x.valor):a):a,0));
+  const fimMes=months.map(m=>saldoIni+efetivos().reduce((a,x)=>x.data.slice(0,7)<=m?(x.tipo==='entrada'?a+num(x.valor):x.tipo==='saida'?a-num(x.valor):a):a,0));
   const varMes=fimMes[5]-fimMes[4];
   const mn=Math.min(...fimMes),mx=Math.max(...fimMes),rg=(mx-mn)||1;
   const pts=fimMes.map((v,i)=>[8+i*(284/5),8+(1-(v-mn)/rg)*52]);
@@ -47,12 +48,17 @@ function vPainel(){
   const abR=ab.filter(x=>x.lado==='receber');const receberTot=abR.reduce((a,x)=>a+num(x.valor),0);
   const late=[...atrasP,...atrasR].filter(x=>!UI.dispensados?.has(x.id)).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
   const IC={cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',coin:'<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6.5v11"/>',trend:'<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',down:'<path d="M12 5v14M5 12l7 7 7-7"/>',box:ICON.estoque,cart:ICON.compras,tag:ICON.vendas,warn:'<path d="M12 3l10 18H2L12 3zM12 10v5M12 18h.01"/>'};
+  const chqV=chequesVencidos(t).sort((a,b)=>venceCheque(a).localeCompare(venceCheque(b)));
+  const chqP=chequesPendentes(),chqRec=chqP.filter(m=>m.tipo!=='saida').reduce((a,m)=>a+num(m.valor),0),chqEmi=chqP.filter(m=>m.tipo==='saida').reduce((a,m)=>a+num(m.valor),0);
   const ic=(k,c='')=>`<div class="ic ${c}"><svg viewBox="0 0 24 24">${IC[k]}</svg></div>`;
   return{sub:'Caixa, contas, compras, vendas e estoque da 3STRUZA em um só lugar.',actions:`<button class="btn olho" data-act="ocultar" title="${UI.ocultar?'Mostrar':'Ocultar'} valores" aria-label="${UI.ocultar?'Mostrar':'Ocultar'} valores" aria-pressed="${!!UI.ocultar}"><svg viewBox="0 0 24 24">${UI.ocultar?'<path d="M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c5 0 9 4.5 10 6-.5.8-1.6 2.2-3.2 3.5M6.5 7.6C4.4 8.9 2.9 10.8 2 12c1 1.5 5 6 10 6 1.6 0 3.1-.4 4.4-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2"/>':'<path d="M2 12c1-1.5 5-6 10-6s9 4.5 10 6c-1 1.5-5 6-10 6S3 13.5 2 12z"/><circle cx="12" cy="12" r="3"/>'}</svg></button><button class="btn" data-act="novaCompra"><svg viewBox="0 0 24 24">${ICON.compras}</svg>Nova compra</button><button class="btn pri" data-act="novaVenda"><svg viewBox="0 0 24 24">${ICON.vendas}</svg>Nova venda</button>`,html:`
   ${needSetup()}
   ${late.length?`<div class="notice"><h3><svg viewBox="0 0 24 24">${IC.warn}</svg>${late.length===1?'1 conta atrasada para conferir':late.length+' contas atrasadas para conferir'}</h3>
     ${late.filter(x=>!UI.dispensados?.has(x.id)).slice(0,3).map(x=>`<div class="nrow"><div class="t"><b>${esc(x.parceiroId?parcNome(x.parceiroId):x.descricao)}</b> <span class="muted">· ${x.parceiroId?esc(x.descricao)+' · ':''}${x.totalParcelas>1?`parcela ${x.parcela}/${x.totalParcelas} · `:''}venceu em ${fd(x.vencimento)} (${brl(x.valor)})</span></div><button class="btn pri" data-act="baixar" data-id="${x.id}"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>${x.lado==='pagar'?'Registrar pagamento':'Registrar recebimento'}</button><button class="btn dark" data-go="${x.lado}"><svg viewBox="0 0 24 24">${ICON[x.lado]}</svg>Ver em ${x.lado==='pagar'?'contas a pagar':'contas a receber'}</button><button class="btn ghost" data-act="dispensar" data-id="${x.id}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Dispensar</button></div>`).join('')}
     ${late.length>3?`<div class="hint">e mais ${late.length-3}…</div>`:''}</div>`:''}
+  ${chqV.length?`<div class="notice"><h3><svg viewBox="0 0 24 24">${IC.warn}</svg>${chqV.length===1?'1 cheque venceu: confirme se compensou':chqV.length+' cheques venceram: confirme se compensaram'}</h3>
+    ${chqV.slice(0,3).map(m=>`<div class="nrow"><div class="t"><b>${esc(m.parceiroId?parcNome(m.parceiroId):chequeTxt(m))}</b> <span class="muted">· ${m.tipo==='saida'?'cheque emitido':'cheque recebido'} (${esc(chequeTxt(m).toLowerCase())}) · venceu em ${fd(venceCheque(m))} (${brl(m.valor)})</span></div><button class="btn pri" data-act="chqOk" data-id="${m.id}">Compensou</button><button class="btn" data-act="chqPrazo" data-id="${m.id}">Novo prazo</button></div>`).join('')}
+    ${chqV.length>3?`<div class="hint">e mais ${chqV.length-3} · <button class="link" data-go="cheques">ver todos os cheques</button></div>`:''}</div>`:''}
   ${(()=>{const cx=saldoTotal(),tot=cx+valTot,pc=tot>0?Math.max(0,Math.min(100,cx/tot*100)):0;
     const pagarTot=ab.filter(x=>x.lado==='pagar').reduce((a,x)=>a+num(x.valor),0);
     // adiantamento de cliente: dinheiro já está no caixa, mas ainda é devido em material
@@ -62,9 +68,9 @@ function vPainel(){
       <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:8px">
         <div class="bar" style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)" role="img" aria-label="Caixa ${brl(cx)}, estoque ${brl(valTot)}"><i style="width:${pc}%;background:var(--brand)"></i><i style="flex:1;background:var(--graphite)"></i></div>
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px"><span><span class="dot" style="display:inline-block;background:var(--brand);margin-right:6px"></span>Caixa <b class="num">${brl(cx)}</b></span><span><span class="dot" style="display:inline-block;background:var(--graphite);margin-right:6px"></span>Estoque <b class="num">${brl(valTot)}</b> <span class="muted num">· ${fkg(kgTot)}</span></span></div>
-        <div class="muted" style="font-size:13px">Contando também o que está em aberto: + a receber <span class="num">${brl(receberTot)}</span> − a pagar <span class="num">${brl(pagarTot)}</span>${credTot>0.005?` − crédito de clientes <span class="num">${brl(credTot)}</span>`:''} = <b>${brl(tot+receberTot-pagarTot-credTot)}</b></div></div></div></div>`})()}
+        <div class="muted" style="font-size:13px">Contando também o que está em aberto: + a receber <span class="num">${brl(receberTot)}</span> − a pagar <span class="num">${brl(pagarTot)}</span>${chqRec>0.005?` + cheques a compensar <span class="num">${brl(chqRec)}</span>`:''}${chqEmi>0.005?` − cheques emitidos a compensar <span class="num">${brl(chqEmi)}</span>`:''}${credTot>0.005?` − crédito de clientes <span class="num">${brl(credTot)}</span>`:''} = <b>${brl(tot+receberTot-pagarTot+chqRec-chqEmi-credTot)}</b></div></div></div></div>`})()}
   <div class="grid heroes">
-    <div class="hero blue"><h3>Saldo em caixa</h3>${ic('cal')}<div class="big">${brl(saldoTotal())}</div><span class="chip">${varMes>=0?'▲ +':'▼ −'}${brl(Math.abs(varMes))} vs ${mShort(months[4]).toLowerCase()}</span>${spark}<div class="foot">Soma de banco, gaveta e créditos com terceiros</div></div>
+    <div class="hero blue"><h3>Saldo em caixa</h3>${ic('cal')}<div class="big">${brl(saldoTotal())}</div><span class="chip">${varMes>=0?'▲ +':'▼ −'}${brl(Math.abs(varMes))} vs ${mShort(months[4]).toLowerCase()}</span>${spark}<div class="foot">${chqP.length?`Sem os ${chqP.length} cheque(s) a compensar`:'Soma de banco, gaveta e créditos com terceiros'}</div></div>
     <div class="hero graph"><h3>A receber</h3>${ic('coin')}<div class="big">${brl(receberTot)}</div><div class="meta">${abR.length} lançamento(s) em aberto · ${brl(receberMes)} vencem neste mês</div><div class="foot">${atrasR.length?`${atrasR.length} atrasado(s) somando ${brl(atrasR.reduce((a,x)=>a+num(x.valor),0))}`:'Nenhum recebimento atrasado'}</div></div>
     <div class="hero green"><h3>Resultado do mês</h3>${ic('trend')}<div class="big">${res<0?'− ':''}${brl(Math.abs(res))}</div><div class="meta">Entradas ${brl(entMes)} · Saídas ${brl(saiMes)}</div><div class="foot">Movimento de caixa de ${mLabel(mes).toLowerCase()}, sem transferências</div></div>
   </div>

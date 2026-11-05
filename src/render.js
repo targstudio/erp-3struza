@@ -12,13 +12,14 @@ import {vAdiantamentos} from './telas/adiantamentos.js';
 import {vPainel} from './telas/painel.js';
 import {vRelatorios} from './telas/relatorios.js';
 import {vTitulos} from './telas/titulos.js';
+import {vCheques} from './telas/cheques.js';
 import {$,esc} from './util.js';
 
 /* ===================== render ===================== */
 function render(){
   renderNav();
   if(MODE==='db'&&loaded.size<COLS.length){return}
-  const fn={painel:vPainel,caixa:vCaixa,pagar:()=>vTitulos('pagar'),receber:()=>vTitulos('receber'),compras:()=>vOps('compras'),vendas:()=>vOps('vendas'),orcamentos:vOrcamentos,adiantamentos:vAdiantamentos,estoque:vEstoque,relatorios:vRelatorios,cadastros:vCadastros,historico:vHistorico,config:vConfig}[UI.view];
+  const fn={painel:vPainel,caixa:vCaixa,pagar:()=>vTitulos('pagar'),receber:()=>vTitulos('receber'),cheques:vCheques,compras:()=>vOps('compras'),vendas:()=>vOps('vendas'),orcamentos:vOrcamentos,adiantamentos:vAdiantamentos,estoque:vEstoque,relatorios:vRelatorios,cadastros:vCadastros,historico:vHistorico,config:vConfig}[UI.view];
   const r=fn();
   const banner=MODE==='local'?`<div class="banner">Modo local: os dados ficam só neste navegador. Abra o ERP pelo link do Claude para salvar na nuvem.</div>`:'';
   const focus=document.activeElement?.id;const pos=document.activeElement?.selectionStart;

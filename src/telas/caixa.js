@@ -16,7 +16,7 @@ function vCaixa(){
     return m.tipo==='entrada'?num(m.valor):m.tipo==='saida'?-num(m.valor):0;
   };
   const doCaixa=m=>fc?(m.contaId===fc||m.contaDestinoId===fc):true;
-  const todos=S.movimentos.filter(doCaixa).slice().sort((a,b)=>a.data.localeCompare(b.data)||(a.criadoEm||0)-(b.criadoEm||0));
+  const todos=S.movimentos.filter(m=>!m.pendente).filter(doCaixa).slice().sort((a,b)=>a.data.localeCompare(b.data)||(a.criadoEm||0)-(b.criadoEm||0));
   const saldoBase=fc?num(byId('contas',fc)?.saldoInicial):contas.reduce((a,c)=>a+num(c.saldoInicial),0);
   // saldo acumulado em ordem cronológica
   let acc=saldoBase,anterior=saldoBase;const sal=new Map();
@@ -39,6 +39,8 @@ function vCaixa(){
   <div class="grid kpis">
     <div class="kpi hl"><span>Saldo total</span><b>${brl(saldoTotal())}</b><small>Soma de todos os locais</small></div>
     ${grupos.map(g=>{const cs=contas.filter(c=>c.tipo===g);return `<div class="kpi"><span>${TIPOCONTA[g]}</span><b>${brl(cs.reduce((a,c)=>a+saldoConta(c.id),0))}</b><small>${cs.length} conta(s)</small></div>`}).join('')}
+    ${(()=>{const p=S.movimentos.filter(m=>m.pendente);if(!p.length)return'';const r=p.filter(m=>m.tipo!=='saida').reduce((a,m)=>a+num(m.valor),0),e=p.filter(m=>m.tipo==='saida').reduce((a,m)=>a+num(m.valor),0);
+      return `<div class="kpi"><span>Cheques a compensar</span><b>${brl(r-e)}</b><small>${p.length} cheque(s) fora do saldo · <button class="link" data-go="cheques">ver cheques</button></small></div>`})()}
   </div>
   <div class="grid accts">${contas.map(c=>`<div class="acct"><div class="t"><span class="dot d-${c.tipo}"></span>${TIPOCONTA[c.tipo]}</div><div class="n">${esc(c.nome)}</div>${c.detalhe?`<div class="muted" style="font-size:13px">${esc(c.detalhe)}</div>`:''}<b class="num ${saldoConta(c.id)<0?'neg':''}">${brl(saldoConta(c.id))}</b><div><button class="link" data-act="filtroConta" data-id="${c.id}">${fc===c.id?'Ver extrato geral':'Ver extrato'}</button> · <button class="link" data-act="editConta" data-id="${c.id}">Editar</button></div></div>`).join('')}
     <button class="acct" data-act="novaConta" style="cursor:pointer;align-items:center;justify-content:center;border-style:dashed;color:var(--muted);font-weight:600;min-height:120px">+ Nova conta de saldo</button></div>
@@ -63,7 +65,7 @@ function baixarCSV(){
   const contas=S.contas.filter(c=>c.ativo!==false);const fc=UI.filtroConta;const{ini,fim}=periodo();
   const efeito=m=>{if(fc){if(m.tipo==='transferencia')return(m.contaDestinoId===fc?num(m.valor):0)-(m.contaId===fc?num(m.valor):0);if(m.contaId!==fc)return 0;return m.tipo==='entrada'?num(m.valor):-num(m.valor)}
     return m.tipo==='entrada'?num(m.valor):m.tipo==='saida'?-num(m.valor):0};
-  const todos=S.movimentos.filter(m=>fc?(m.contaId===fc||m.contaDestinoId===fc):true).slice().sort((a,b)=>a.data.localeCompare(b.data)||(a.criadoEm||0)-(b.criadoEm||0));
+  const todos=S.movimentos.filter(m=>!m.pendente).filter(m=>fc?(m.contaId===fc||m.contaDestinoId===fc):true).slice().sort((a,b)=>a.data.localeCompare(b.data)||(a.criadoEm||0)-(b.criadoEm||0));
   let acc=fc?num(byId('contas',fc)?.saldoInicial):contas.reduce((a,c)=>a+num(c.saldoInicial),0);
   const linhas=[['Data','Descrição','Categoria','Cliente/fornecedor','Conta','Entrada','Saída','Saldo após']];
   todos.forEach(m=>{acc+=efeito(m);if(m.data<ini||m.data>fim)return;const e=efeito(m);

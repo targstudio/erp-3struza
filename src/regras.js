@@ -5,7 +5,7 @@ import {addDays,addMonths,fnum,nid,num,r2,today} from './util.js';
 /* ===================== regras de negócio ===================== */
 function saldoConta(id){
   const c=byId('contas',id);let s=num(c?.saldoInicial);
-  for(const m of S.movimentos){
+  for(const m of S.movimentos){if(m.pendente)continue; // cheque a compensar ainda não conta no saldo
     if(m.tipo==='entrada'&&m.contaId===id)s+=num(m.valor);
     else if(m.tipo==='saida'&&m.contaId===id)s-=num(m.valor);
     else if(m.tipo==='transferencia'){if(m.contaId===id)s-=num(m.valor);if(m.contaDestinoId===id)s+=num(m.valor)}
@@ -118,6 +118,9 @@ function caixaPrevisto(dias=30,hoje=today()){
   const fim=addDays(hoje,dias);const porDia=new Map();
   for(const t of S.titulos){if(t.pago)continue;const d=t.vencimento<hoje?hoje:t.vencimento;if(d>fim)continue;
     const x=porDia.get(d)||{ent:0,sai:0,atras:0};const v=num(t.valor);if(t.lado==='receber')x.ent+=v;else x.sai+=v;if(t.vencimento<hoje)x.atras++;porDia.set(d,x)}
+  // cheques a compensar entram no dia do vencimento (vencidos e não confirmados, hoje)
+  for(const m of S.movimentos){if(!m.pendente)continue;const vc=m.venceEm||m.cheque?.bomPara||m.data;const d=vc<hoje?hoje:vc;if(d>fim)continue;
+    const x=porDia.get(d)||{ent:0,sai:0,atras:0};if(m.tipo==='saida')x.sai+=num(m.valor);else x.ent+=num(m.valor);if(vc<hoje)x.atras++;porDia.set(d,x)}
   let saldo=saldoTotal();const out=[];
   for(let i=0;i<=dias;i++){const d=addDays(hoje,i);const x=porDia.get(d)||{ent:0,sai:0,atras:0};saldo+=x.ent-x.sai;out.push({data:d,ent:r2(x.ent),sai:r2(x.sai),atras:x.atras,saldo:r2(saldo)})}
   return out}

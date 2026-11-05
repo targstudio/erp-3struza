@@ -2,6 +2,7 @@ import {COLS,S,contaNome,parcNome} from './dados.js';
 import {EMB,FORMA,TIPOCONTA,estoque,saldoConta,statusT} from './regras.js';
 import {baixarArquivo} from './telas/caixa.js';
 import {fd,num,r2,today} from './util.js';
+import {chequeTxt,ehCheque,statusCheque,venceCheque} from './cheques.js';
 
 /* ---------- Backup em planilha (.xlsx) ---------- */
 // zip simples sem compressão, suficiente para gerar o .xlsx no navegador
@@ -29,7 +30,8 @@ function baixarBackup(){
   const n=v=>r2(num(v));
   const sh=[
     ['Contas de saldo',[['Nome','Tipo','Detalhe','Saldo inicial','Saldo atual','Ativa']].concat(S.contas.map(c=>[c.nome,TIPOCONTA[c.tipo],c.detalhe||'',n(c.saldoInicial),saldoConta(c.id),c.ativo===false?'Não':'Sim']))],
-    ['Caixa',[['Data','Tipo','Descrição','Categoria','Conta','Conta destino','Cliente/fornecedor','Valor']].concat(S.movimentos.slice().sort((a,b)=>a.data.localeCompare(b.data)).map(m=>[fd(m.data),{entrada:'Entrada',saida:'Saída',transferencia:'Transferência'}[m.tipo],m.descricao,m.categoria||'',contaNome(m.contaId),m.contaDestinoId?contaNome(m.contaDestinoId):'',m.parceiroId?parcNome(m.parceiroId):'',n(m.valor)]))],
+    ['Caixa',[['Data','Tipo','Descrição','Categoria','Conta','Conta destino','Cliente/fornecedor','Valor']].concat(S.movimentos.filter(m=>!m.pendente).sort((a,b)=>a.data.localeCompare(b.data)).map(m=>[fd(m.data),{entrada:'Entrada',saida:'Saída',transferencia:'Transferência'}[m.tipo],m.descricao,m.categoria||'',contaNome(m.contaId),m.contaDestinoId?contaNome(m.contaDestinoId):'',m.parceiroId?parcNome(m.parceiroId):'',n(m.valor)]))],
+    ['Cheques',[['Vencimento','Tipo','Cheque','Cliente/fornecedor','Descrição','Caixa','Valor','Situação','Compensado em','Reprogramações']].concat(S.movimentos.filter(ehCheque).sort((a,b)=>venceCheque(a).localeCompare(venceCheque(b))).map(m=>[fd(venceCheque(m)),m.tipo==='saida'?'Emitido':'Recebido',chequeTxt(m),m.parceiroId?parcNome(m.parceiroId):'',m.descricao||'',contaNome(m.contaId),n(m.valor),{compensado:'Compensado',vencido:'Vencido',aguardando:'A compensar'}[statusCheque(m)],m.compensadoEm?fd(m.compensadoEm):'',(m.prazos||[]).length]))],
     ['Contas a pagar e receber',[['Lado','Vencimento','Descrição','Cliente/fornecedor','Categoria','Parcela','Valor','Situação','Pago em','Valor pago']].concat(S.titulos.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento)).map(t=>[t.lado==='pagar'?'A pagar':'A receber',fd(t.vencimento),t.descricao,t.parceiroId?parcNome(t.parceiroId):'',t.categoria||'',t.totalParcelas>1?t.parcela+'/'+t.totalParcelas:'',n(t.valor),statusT(t),t.pago?fd(t.pagoEm):'',t.pago?n(t.valorPago):'']))],
     ...['compras','vendas'].map(col=>[col==='compras'?'Compras':'Vendas',[['Nº','Data',col==='compras'?'Fornecedor':'Cliente','Material','Cor','Embalagem','Qtd','Peso emb. (kg)','Peso (kg)','R$/kg','Subtotal','Total da operação','Pagamento']].concat(S[col].slice().sort((a,b)=>a.data.localeCompare(b.data)).flatMap(o=>(o.itens||[]).map(i=>[o.numero,fd(o.data),parcNome(o.parceiroId),i.tipo,i.cor,EMB[i.embalagem],n(i.qtd),n(i.pesoUn),n(i.kg),num(i.precoKg),n(num(i.kg)*num(i.precoKg)),n(o.total),FORMA[o.forma]])))]),
     ['Estoque',[['Material','Cor','Embalagem','Peso emb. (kg)','Qtd embalagens','Peso total (kg)','Custo médio/kg','Valor']].concat(estoque().filter(e=>Math.abs(e.kg)>0.0001).map(e=>[e.tipo,e.cor,EMB[e.embalagem],e.pesoUn,e.un,n(e.kg),n(e.custoKg),n(e.valor)]))],

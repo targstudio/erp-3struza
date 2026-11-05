@@ -11,6 +11,7 @@ import {delTitulo,estornar,formBaixa,formTitulo} from './forms/titulo.js';
 import {extratoCaixa,orcamento,recibo,reciboAdiant,romaneio} from './impressos.js';
 import {ask,fv,modal,modalClose,toast} from './modal.js';
 import {render} from './render.js';
+import {desfazerCompensacao,formCompensar,formReprogramar} from './cheques.js';
 import {baixarCSV} from './telas/caixa.js';
 import {saveCfg} from './telas/configuracoes.js';
 import {HIST,descReg,loadHist,verHist} from './telas/historico.js';
@@ -40,6 +41,9 @@ document.addEventListener('click',async e=>{
     case 'backup':baixarBackup();break;case 'backupJson':baixarBackupJSON();break;
     case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;
     case 'filtroT':UI.filtroT=b.dataset.v;render();break;
+    case 'chqFiltro':UI.chqFiltro=b.dataset.v;render();break;
+    case 'chqOk':formCompensar(id);break;case 'chqPrazo':formReprogramar(id);break;
+    case 'chqDesfazer':if(await ask('Desfazer compensação','O cheque volta para a lista de a compensar e o valor sai do saldo do caixa.',[{label:'Desfazer',cls:'danger',v:true}]))await desfazerCompensacao(id);break;
     case 'cadFiltro':UI.cadFiltro=b.dataset.v;render();break;
     case 'opTipo':UI.opTipo=b.dataset.v;render();break;
     case 'novoTitulo':formTitulo(b.dataset.lado);break;case 'editTitulo':formTitulo(null,id);break;
