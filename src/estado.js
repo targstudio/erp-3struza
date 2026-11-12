@@ -31,7 +31,7 @@ function monthCtl(){return `<div class="month"><button data-act="mes" data-d="-1
 function renderNav(){
   const late=S.titulos.filter(t=>!t.pago&&t.vencimento<today());
   const lp=late.filter(t=>t.lado==='pagar').length,lr=late.filter(t=>t.lado==='receber').length;
-  const t0=today(),lc=S.movimentos.filter(m=>m.pendente&&(m.venceEm||m.cheque?.bomPara||m.data)<=t0).length;
+  const t0=today(),lc=S.movimentos.filter(m=>m.pendente&&(m.cheque?.semDados?(m.cheque.prazoDados||m.data):(m.venceEm||m.cheque?.bomPara||m.data))<=t0).length;
   $('#nav').innerHTML=VIEWS.map(([k,l])=>k==='g'?`<div class="nav-sep"></div>`:
     `<a data-go="${k}" class="${UI.view===k?'on':''}" tabindex="0"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${l}${k==='pagar'&&lp?`<span class="badge">${lp}</span>`:''}${k==='receber'&&lr?`<span class="badge">${lr}</span>`:''}${k==='cheques'&&lc?`<span class="badge">${lc}</span>`:''}</a>`).join('');
 }

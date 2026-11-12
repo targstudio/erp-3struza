@@ -24,9 +24,10 @@ function formMov(tipo,id){
     <label class="fl">Descrição<input name="descricao" id="mDesc" value="${esc(m.descricao||'')}"></label>
     <div class="row"><label class="fl">Conta<select name="contaId" id="mConta">${contaOpts(m.contaId)}</select></label>
     <label class="fl">Categoria<select name="categoria" id="mCat">${opt(cats,m.categoria,'—')}</select></label></div>
+    ${tipo==='entrada'&&m.meio!=='cheque'?`<label class="fl">Forma de recebimento<select name="meio">${[['','Não informada'],['dinheiro','Dinheiro'],['pix','PIX'],['cartao','Cartão de crédito']].map(([k,l])=>`<option value="${k}" ${(m.meio||'')===k?'selected':''}>${l}</option>`).join('')}</select></label>`:''}
     <label class="fl">Cliente / fornecedor (opcional)<select name="parceiroId" id="mParc"><option value="">—</option>${S.parceiros.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(p=>`<option value="${p.id}" ${p.id===m.parceiroId?'selected':''}>${esc(p.nome)}</option>`).join('')}</select></label>`,
   {onSubmit:async f=>{const v=num(fv(f,'valor'));if(v<=0)throw'Informe um valor maior que zero.';if(!fv(f,'descricao'))throw'Informe a descrição.';
-    await put('movimentos',{...m,id:id||nid(),tipo,data:fv(f,'data')||today(),valor:v,descricao:fv(f,'descricao'),contaId:fv(f,'contaId'),categoria:fv(f,'categoria'),parceiroId:fv(f,'parceiroId'),criadoEm:m.criadoEm||Date.now()});toast(tipo==='entrada'?'Entrada lançada':'Saída lançada')}});
+    await put('movimentos',{...m,id:id||nid(),tipo,data:fv(f,'data')||today(),valor:v,descricao:fv(f,'descricao'),contaId:fv(f,'contaId'),categoria:fv(f,'categoria'),parceiroId:fv(f,'parceiroId'),...(tipo==='entrada'&&m.meio!=='cheque'?{meio:fv(f,'meio')||''}:{}),criadoEm:m.criadoEm||Date.now()});toast(tipo==='entrada'?'Entrada lançada':'Saída lançada')}});
 }
 
 export {formMov};

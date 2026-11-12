@@ -2,6 +2,7 @@ import {S,byId,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl,perCtl,periodo} from '../estado.js';
 import {TIPOCONTA,saldoConta,saldoTotal,codVenda} from '../regras.js';
 import {needSetup} from '../render.js';
+import {ORDEM,TIPOREC,recebidosPorConta,tipoRecebimento} from '../cheques.js';
 import {histBtn} from './historico.js';
 import {brl,esc,fd,fnum,num,today} from '../util.js';
 
@@ -23,6 +24,11 @@ function vCaixa(){
   todos.forEach(m=>{if(m.data<ini){anterior+=efeito(m)}acc+=efeito(m);sal.set(m.id,acc)});
   let movs=todos.filter(m=>m.data>=ini&&m.data<=fim);
   if(UI.busca){const q=UI.busca.toLowerCase();movs=movs.filter(m=>(m.descricao+' '+(m.categoria||'')+' '+parcNome(m.parceiroId)).toLowerCase().includes(q))}
+  const ff=UI.filtroForma;if(ff)movs=movs.filter(m=>m.tipo==='entrada'&&tipoRecebimento(m)===ff);
+  // recebimentos de cada caixa no período, separados por forma (com etiqueta)
+  const rec=recebidosPorConta(ini,fim);
+  const recTags=cid=>{const r=rec.get(cid);if(!r)return'';
+    return `<div class="recs"><span class="lb">Recebido em ${esc(label)}</span>${ORDEM.filter(k=>r.tipos[k]).map(k=>tag(k,r.tipos[k])).join('')}</div>`};
   const ent=movs.reduce((a,m)=>a+Math.max(0,efeito(m)),0),sai=movs.reduce((a,m)=>a+Math.max(0,-efeito(m)),0);
   movs=movs.slice().reverse();
   // tabelas muito longas travam a tela: mostra os mais recentes primeiro e carrega o resto sob demanda
@@ -42,25 +48,27 @@ function vCaixa(){
     ${(()=>{const p=S.movimentos.filter(m=>m.pendente);if(!p.length)return'';const r=p.filter(m=>m.tipo!=='saida').reduce((a,m)=>a+num(m.valor),0),e=p.filter(m=>m.tipo==='saida').reduce((a,m)=>a+num(m.valor),0);
       return `<div class="kpi"><span>Cheques a compensar</span><b>${brl(r-e)}</b><small>${p.length} cheque(s) fora do saldo · <button class="link" data-go="cheques">ver cheques</button></small></div>`})()}
   </div>
-  <div class="grid accts">${contas.map(c=>`<div class="acct"><div class="t"><span class="dot d-${c.tipo}"></span>${TIPOCONTA[c.tipo]}</div><div class="n">${esc(c.nome)}</div>${c.detalhe?`<div class="muted" style="font-size:13px">${esc(c.detalhe)}</div>`:''}<b class="num ${saldoConta(c.id)<0?'neg':''}">${brl(saldoConta(c.id))}</b><div><button class="link" data-act="filtroConta" data-id="${c.id}">${fc===c.id?'Ver extrato geral':'Ver extrato'}</button> · <button class="link" data-act="editConta" data-id="${c.id}">Editar</button></div></div>`).join('')}
+  <div class="grid accts">${contas.map(c=>`<div class="acct"><div class="t"><span class="dot d-${c.tipo}"></span>${TIPOCONTA[c.tipo]}</div><div class="n">${esc(c.nome)}</div>${c.detalhe?`<div class="muted" style="font-size:13px">${esc(c.detalhe)}</div>`:''}<b class="num ${saldoConta(c.id)<0?'neg':''}">${brl(saldoConta(c.id))}</b>${recTags(c.id)}<div><button class="link" data-act="filtroConta" data-id="${c.id}">${fc===c.id?'Ver extrato geral':'Ver extrato'}</button> · <button class="link" data-act="editConta" data-id="${c.id}">Editar</button></div></div>`).join('')}
     <button class="acct" data-act="novaConta" style="cursor:pointer;align-items:center;justify-content:center;border-style:dashed;color:var(--muted);font-weight:600;min-height:120px">+ Nova conta de saldo</button></div>
   <div class="card">
     <div class="card-h"><h2>${tituloExtrato}</h2><div class="sp toolbar">${perCtl()}${UI.per==='tudo'?'':monthCtl()}
+      <select class="f" id="fForma" data-act="fForma" title="Filtrar entradas pela forma de recebimento"><option value="">Todas as formas</option>${ORDEM.map(k=>`<option value="${k}" ${ff===k?'selected':''}>${TIPOREC[k]}</option>`).join('')}</select>
       <select class="f" id="fConta" data-act="fConta"><option value="">Todos os caixas juntos</option>${contas.map(c=>`<option value="${c.id}" ${fc===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>
       <input class="search" id="busca" placeholder="Buscar…" value="${esc(UI.busca)}">
       <button class="btn sm" data-act="extratoImp" title="Extrato para imprimir ou salvar em PDF">Extrato para apresentar</button> <button class="btn sm" data-act="csv">Baixar CSV</button></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th class="r">Valor</th><th class="r">Saldo após</th><th></th></tr></thead><tbody>
-    ${movsTela.map(m=>{const e=efeito(m);return `<tr><td class="num">${fd(m.data)}</td><td>${esc(m.descricao)} ${origem(m)}${m.parceiroId?`<div class="muted" style="font-size:12.5px">${esc(parcNome(m.parceiroId))}</div>`:''}</td><td class="muted">${esc(m.tipo==='transferencia'?'Transferência':m.categoria||'')}</td>
+    ${movsTela.map(m=>{const e=efeito(m);return `<tr><td class="num">${fd(m.data)}</td><td>${m.tipo==='entrada'?tag(tipoRecebimento(m))+' ':''}${esc(m.descricao)} ${origem(m)}${m.parceiroId?`<div class="muted" style="font-size:12.5px">${esc(parcNome(m.parceiroId))}</div>`:''}</td><td class="muted">${esc(m.tipo==='transferencia'?'Transferência':m.categoria||'')}</td>
       <td>${m.tipo==='transferencia'?`${esc(contaNome(m.contaId))} → ${esc(contaNome(m.contaDestinoId))}`:esc(contaNome(m.contaId))}</td>
       <td class="r ${e>0?'pos':e<0?'neg':'muted'}">${e>0?'+ ':e<0?'− ':''}${e?brl(Math.abs(e)):brl(m.valor)}</td>
       <td class="r ${sal.get(m.id)<0?'neg':''}">${brl(sal.get(m.id))}</td>
-      <td class="acts">${m.ref?'':`<button class="btn sm" data-act="editMov" data-id="${m.id}">Editar</button> `}<button class="btn sm danger" data-act="delMov" data-id="${m.id}">Excluir</button> ${histBtn('movimentos',m.id)}</td></tr>`}).join('')||`<tr><td colspan="7"><div class="empty"><b>Sem movimentações em ${label}</b>Lance uma entrada, saída ou transferência, ou mude o período.</div></td></tr>`}
+      <td class="acts">${m.ref?'':`<button class="btn sm" data-act="editMov" data-id="${m.id}">Editar</button> `}<button class="btn sm danger" data-act="delMov" data-id="${m.id}">Excluir</button> ${histBtn('movimentos',m.id)}</td></tr>`}).join('')||`<tr><td colspan="7"><div class="empty"><b>Sem ${ff?'recebimentos em '+esc(TIPOREC[ff].toLowerCase()):'movimentações'} em ${label}</b>Lance uma entrada, saída ou transferência, ou mude o período.</div></td></tr>`}
     ${ocultos?`<tr><td colspan="7" style="text-align:center"><button class="btn sm" data-act="caixaMais">Mostrar mais ${Math.min(ocultos,500)} de ${ocultos} lançamentos mais antigos</button></td></tr>`:''}
     </tbody>${movs.length?`<tfoot>
       <tr><td colspan="4">Saldo antes de ${UI.per==='tudo'?'tudo':fd(ini)}</td><td></td><td class="r">${brl(anterior)}</td><td></td></tr>
       <tr><td colspan="4">Entradas <span class="pos">${brl(ent)}</span> · Saídas <span class="neg">${brl(sai)}</span>${fc?'':' <span class="muted">(transferências entre caixas não entram na soma)</span>'}</td><td class="r ${ent-sai<0?'neg':'pos'}">${brl(ent-sai)}</td><td class="r">${brl(anterior+ent-sai)}</td><td></td></tr></tfoot>`:''}</table></div>
   </div>`};
 }
+const tag=(k,x)=>`<span class="tg tg-${k}" ${x?`title="${x.n} recebimento(s)${x.pendente>0.005?` · ${brl(x.pendente)} ainda a compensar`:''}"`:''}>${TIPOREC[k]}${x?` <span class="v">${brl(x.valor)}</span>`:''}</span>`;
 function baixarCSV(){
   const contas=S.contas.filter(c=>c.ativo!==false);const fc=UI.filtroConta;const{ini,fim}=periodo();
   const efeito=m=>{if(fc){if(m.tipo==='transferencia')return(m.contaDestinoId===fc?num(m.valor):0)-(m.contaId===fc?num(m.valor):0);if(m.contaId!==fc)return 0;return m.tipo==='entrada'?num(m.valor):-num(m.valor)}
@@ -79,4 +87,4 @@ function baixarArquivo(conteudo,nome,tipo){const a=document.createElement('a');a
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},0)}
 function baixarCSVLinhas(linhas,nome){baixarArquivo('\ufeff'+linhas.map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n'),nome,'text/csv;charset=utf-8')}
 
-export {vCaixa,baixarCSV,slug,baixarArquivo,baixarCSVLinhas};
+export {tag,vCaixa,baixarCSV,slug,baixarArquivo,baixarCSVLinhas};

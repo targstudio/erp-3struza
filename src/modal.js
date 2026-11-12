@@ -29,6 +29,6 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 const fv=(f,n)=>f.elements[n]?.value?.trim()??'';
 const opt=(list,sel,ph)=>(ph?`<option value="">${ph}</option>`:'')+(sel&&!list.includes(sel)?[sel,...list]:list).map(v=>`<option ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
 const contaOpts=(sel,tipoPref)=>S.contas.filter(c=>c.ativo!==false||c.id===sel).map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.nome)} · ${TIPOCONTA[c.tipo]}</option>`).join('');
-function defaultConta(forma){const pref=forma==='dinheiro'||forma==='cheque'?'gaveta':'banco';return(S.contas.find(c=>c.tipo===pref&&c.ativo!==false)||S.contas[0])?.id||''}
+function defaultConta(forma){const pref=forma==='dinheiro'||forma==='cheque'||forma==='cartao'?'gaveta':'banco';return(S.contas.find(c=>c.tipo===pref&&c.ativo!==false)||S.contas[0])?.id||''}
 
 export {modalClose,modal,ask,toast,fv,opt,contaOpts,defaultConta};

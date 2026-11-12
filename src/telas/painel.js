@@ -2,7 +2,7 @@ import {S,parcNome} from '../dados.js';
 import {UI} from '../estado.js';
 import {TIPOCONTA,caixaPrevisto,creditosClientes,estoque,pillT,porMaterial,saldoConta,saldoTotal,vendasPorMes} from '../regras.js';
 import {colunas,linha} from '../graficos.js';
-import {chequeTxt,chequesPendentes,chequesVencidos,efetivos,venceCheque} from '../cheques.js';
+import {chequeTxt,chequesPendentes,chequesVencidos,dadosVencidos,efetivos,venceCheque} from '../cheques.js';
 import {needSetup} from '../render.js';
 import {ICON,addDays,addMonths,brl,esc,fd,fdShort,fkg,fnum,mLabel,mShort,num,today} from '../util.js';
 
@@ -49,6 +49,7 @@ function vPainel(){
   const late=[...atrasP,...atrasR].filter(x=>!UI.dispensados?.has(x.id)).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
   const IC={cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',coin:'<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6.5v11"/>',trend:'<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',down:'<path d="M12 5v14M5 12l7 7 7-7"/>',box:ICON.estoque,cart:ICON.compras,tag:ICON.vendas,warn:'<path d="M12 3l10 18H2L12 3zM12 10v5M12 18h.01"/>'};
   const chqV=chequesVencidos(t).sort((a,b)=>venceCheque(a).localeCompare(venceCheque(b)));
+  const chqD=dadosVencidos(t).sort((a,b)=>a.cheque.prazoDados.localeCompare(b.cheque.prazoDados));
   const chqP=chequesPendentes(),chqRec=chqP.filter(m=>m.tipo!=='saida').reduce((a,m)=>a+num(m.valor),0),chqEmi=chqP.filter(m=>m.tipo==='saida').reduce((a,m)=>a+num(m.valor),0);
   const ic=(k,c='')=>`<div class="ic ${c}"><svg viewBox="0 0 24 24">${IC[k]}</svg></div>`;
   return{sub:'Caixa, contas, compras, vendas e estoque da 3STRUZA em um só lugar.',actions:`<button class="btn olho" data-act="ocultar" title="${UI.ocultar?'Mostrar':'Ocultar'} valores" aria-label="${UI.ocultar?'Mostrar':'Ocultar'} valores" aria-pressed="${!!UI.ocultar}"><svg viewBox="0 0 24 24">${UI.ocultar?'<path d="M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c5 0 9 4.5 10 6-.5.8-1.6 2.2-3.2 3.5M6.5 7.6C4.4 8.9 2.9 10.8 2 12c1 1.5 5 6 10 6 1.6 0 3.1-.4 4.4-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2"/>':'<path d="M2 12c1-1.5 5-6 10-6s9 4.5 10 6c-1 1.5-5 6-10 6S3 13.5 2 12z"/><circle cx="12" cy="12" r="3"/>'}</svg></button><button class="btn" data-act="novaCompra"><svg viewBox="0 0 24 24">${ICON.compras}</svg>Nova compra</button><button class="btn pri" data-act="novaVenda"><svg viewBox="0 0 24 24">${ICON.vendas}</svg>Nova venda</button>`,html:`
@@ -59,6 +60,9 @@ function vPainel(){
   ${chqV.length?`<div class="notice"><h3><svg viewBox="0 0 24 24">${IC.warn}</svg>${chqV.length===1?'1 cheque venceu: confirme se compensou':chqV.length+' cheques venceram: confirme se compensaram'}</h3>
     ${chqV.slice(0,3).map(m=>`<div class="nrow"><div class="t"><b>${esc(m.parceiroId?parcNome(m.parceiroId):chequeTxt(m))}</b> <span class="muted">· ${m.tipo==='saida'?'cheque emitido':'cheque recebido'} (${esc(chequeTxt(m).toLowerCase())}) · venceu em ${fd(venceCheque(m))} (${brl(m.valor)})</span></div><button class="btn pri" data-act="chqOk" data-id="${m.id}">Compensou</button><button class="btn" data-act="chqPrazo" data-id="${m.id}">Novo prazo</button></div>`).join('')}
     ${chqV.length>3?`<div class="hint">e mais ${chqV.length-3} · <button class="link" data-go="cheques">ver todos os cheques</button></div>`:''}</div>`:''}
+  ${chqD.length?`<div class="notice"><h3><svg viewBox="0 0 24 24">${IC.warn}</svg>${chqD.length===1?'1 cheque está sem os dados registrados':chqD.length+' cheques estão sem os dados registrados'}</h3>
+    ${chqD.slice(0,3).map(m=>`<div class="nrow"><div class="t"><b>${esc(m.parceiroId?parcNome(m.parceiroId):m.descricao)}</b> <span class="muted">· venda antes do cheque chegar · prazo para registrar ${m.cheque.prazoDados<t?'era ':''}${fd(m.cheque.prazoDados)} (${brl(m.valor)})</span></div><button class="btn pri" data-act="chqDados" data-id="${m.id}">Registrar dados</button></div>`).join('')}
+    ${chqD.length>3?`<div class="hint">e mais ${chqD.length-3} · <button class="link" data-go="cheques">ver todos os cheques</button></div>`:''}</div>`:''}
   ${(()=>{const cx=saldoTotal(),tot=cx+valTot,pc=tot>0?Math.max(0,Math.min(100,cx/tot*100)):0;
     const pagarTot=ab.filter(x=>x.lado==='pagar').reduce((a,x)=>a+num(x.valor),0);
     // adiantamento de cliente: dinheiro já está no caixa, mas ainda é devido em material
