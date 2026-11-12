@@ -1,6 +1,6 @@
 import {S,cfg,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl} from '../estado.js';
-import {pgResumo} from '../forms/pagamento.js';
+import {pgDetalhe,pgLinhaDet} from './pagresumo.js';
 import {EMB,FORMA,FORMA_AUTO,custosMedios,linked,margemVenda,codVenda,porMaterial} from '../regras.js';
 import {histBtn} from './historico.js';
 import {brl,esc,fd,fkg,fnum,mLabel,mShort,num,swatch} from '../util.js';
@@ -38,7 +38,7 @@ function vOps(col){
       <td>${(x.itens||[]).map(i=>`<div style="white-space:nowrap">${swatch(i.cor)}${esc(i.tipo)} ${esc(i.cor)} <span class="muted">· ${i.embalagem==='granel'?'granel':fnum(i.qtd,0)+' '+EMB[i.embalagem].toLowerCase()+(num(i.qtd)>1?'s':'')+' de '+fnum(i.pesoUn,0)+' kg'}</span></div>`).join('')}</td>
       <td class="r">${fkg(x.totalKg)}</td><td class="r">${(x.itens||[]).map(i=>`<div style="white-space:nowrap">${num(i.kg)?brl(i.precoKg):'—'}</div>`).join('')}</td><td class="r"><b>${brl(x.total)}</b></td>${isC?'':(m=>`<td class="r ${m.margem<0?'neg':''}" title="Material ${brl(m.custoMat)}${m.frete?' · frete CIF '+brl(m.frete):''}${m.imposto?' · impostos '+brl(m.imposto):''}${m.semCusto?' · algum material sem custo cadastrado':''}">${brl(m.margem)}${m.semCusto?' <span class="muted">*</span>':''}<div class="muted" style="font-size:12px">${num(x.total)?fnum(m.margem/num(x.total)*100,1)+'%':''}</div></td>`)(mg.get(x.id))}
       <td><div>${FORMA[x.forma]}${x.forma==='credito'?` · ${x.parcelas}x`:''}</div>${st}</td>
-      <td class="acts"><button class="btn sm" data-act="recibo" data-col="${col}" data-id="${x.id}" title="${isC?'Comprovante de compra':'Recibo de venda'} para imprimir ou salvar em PDF">${isC?'Comprovante':'Recibo'}</button>${isC?'':` <button class="btn sm" data-act="romaneio" data-id="${x.id}" title="Romaneio de transporte, sem valores, para acompanhar a carga">Romaneio</button> <button class="btn sm" data-act="novoAdiant" data-p="${x.parceiroId}" data-v="${x.id}" title="O cliente pagou a mais: lança o valor extra como adiantamento (crédito do cliente)">+ Adiant.</button>`} <button class="btn sm" data-act="editOp" data-col="${col}" data-id="${x.id}">Editar</button> <button class="btn sm danger" data-act="delOp" data-col="${col}" data-id="${x.id}">Excluir</button> ${histBtn(col,x.id)}</td></tr>`}).join('')||`<tr><td colspan="${isC?9:10}"><div class="empty"><b>Nenhuma ${isC?'compra':'venda'} em ${mLabel(mes)}</b>Use “+ Nova ${isC?'compra':'venda'}” para lançar.</div></td></tr>`}
+      <td class="acts"><button class="btn sm" data-act="recibo" data-col="${col}" data-id="${x.id}" title="${isC?'Comprovante de compra':'Recibo de venda'} para imprimir ou salvar em PDF">${isC?'Comprovante':'Recibo'}</button>${isC?'':` <button class="btn sm" data-act="romaneio" data-id="${x.id}" title="Romaneio de transporte, sem valores, para acompanhar a carga">Romaneio</button> <button class="btn sm" data-act="novoAdiant" data-p="${x.parceiroId}" data-v="${x.id}" title="O cliente pagou a mais: lança o valor extra como adiantamento (crédito do cliente)">+ Adiant.</button>`} <button class="btn sm" data-act="editOp" data-col="${col}" data-id="${x.id}">Editar</button> <button class="btn sm danger" data-act="delOp" data-col="${col}" data-id="${x.id}">Excluir</button> ${histBtn(col,x.id)}</td></tr>${x.forma==='permuta'?'':pgLinhaDet(x.id,x.pagamentos,isC,isC?9:10)}`}).join('')||`<tr><td colspan="${isC?9:10}"><div class="empty"><b>Nenhuma ${isC?'compra':'venda'} em ${mLabel(mes)}</b>Use “+ Nova ${isC?'compra':'venda'}” para lançar.</div></td></tr>`}
     </tbody>${rows.length?`<tfoot><tr><td colspan="4">${rows.length} lançamento(s)</td><td class="r">${fkg(rows.reduce((a,x)=>a+num(x.totalKg),0))}</td><td class="r"></td><td class="r">${brl(rows.reduce((a,x)=>a+num(x.total),0))}</td>${isC?'':`<td class="r">${brl(mgT)}</td>`}<td colspan="2"></td></tr></tfoot>`:''}</table></div>
   </div>`};
 }
@@ -47,8 +47,8 @@ function finStatus(x){
   return finStatus0(x)+ad}
 function finStatus0(x){
   if(x.forma==='permuta')return `<span class="muted" style="font-size:12.5px">${esc(x.permutaDesc||'Sem movimento financeiro')}</span>`;
-  if(x.forma==='credito'){const{tit}=linked(x.id);const p=tit.filter(t=>t.pago).length;return `<span class="pill ${p===tit.length&&tit.length?'p-ok':'p-open'}">${p}/${tit.length} ${x.lado==='vendas'||S.vendas.includes(x)?'recebidas':'pagas'}</span>${num(x.entrada)?`<div class="muted" style="font-size:12.5px">Entrada ${brl(x.entrada)}${(x.pagamentos||[]).length>1||x.pagamentos?.[0]?.meio==='cheque'?':<br>'+pgResumo(x,S.compras.includes(x)):''}</div>`:''}`}
-  if((x.pagamentos||[]).length>1||x.pagamentos?.[0]?.meio==='cheque')return `<span class="muted" style="font-size:12.5px">${pgResumo(x,S.compras.includes(x))}</span>`;
+  if(x.forma==='credito'){const{tit}=linked(x.id);const p=tit.filter(t=>t.pago).length;return `<span class="pill ${p===tit.length&&tit.length?'p-ok':'p-open'}">${p}/${tit.length} ${x.lado==='vendas'||S.vendas.includes(x)?'recebidas':'pagas'}</span>${num(x.entrada)?`<div class="muted" style="font-size:12.5px">Entrada ${brl(x.entrada)}${(x.pagamentos||[]).length>1||x.pagamentos?.[0]?.meio==='cheque'?':<br>'+pgDetalhe(x.id,x.pagamentos,S.compras.includes(x)):''}</div>`:''}`}
+  if((x.pagamentos||[]).length>1||x.pagamentos?.[0]?.meio==='cheque')return `<div class="muted" style="font-size:12.5px">${pgDetalhe(x.id,x.pagamentos,S.compras.includes(x))}</div>`;
   return `<span class="muted" style="font-size:12.5px">${esc(contaNome(x.contaId))}</span>`;
 }
 

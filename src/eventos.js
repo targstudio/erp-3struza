@@ -41,6 +41,7 @@ document.addEventListener('click',async e=>{
     case 'backup':baixarBackup();break;case 'backupJson':baixarBackupJSON();break;
     case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;
     case 'filtroT':UI.filtroT=b.dataset.v;render();break;
+    case 'pgDet':{const s=UI.pgAbertos||(UI.pgAbertos=new Set());s.has(id)?s.delete(id):s.add(id);render();break}
     case 'chqFiltro':UI.chqFiltro=b.dataset.v;render();break;
     case 'chqOk':formCompensar(id);break;case 'chqDados':formDadosCheque(id);break;case 'chqPrazo':formReprogramar(id);break;
     case 'chqDesfazer':if(await ask('Desfazer compensação','O cheque volta para a lista de a compensar e o valor sai do saldo do caixa.',[{label:'Desfazer',cls:'danger',v:true}]))await desfazerCompensacao(id);break;
