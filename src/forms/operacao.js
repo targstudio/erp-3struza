@@ -1,4 +1,4 @@
-import {comCheque} from '../cheques.js';
+import {comCheque,parear} from '../cheques.js';
 import {S,byId,cfg,del,parcNome,put} from '../dados.js';
 import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
 import {parcFields} from './parceiro.js';
@@ -191,9 +191,10 @@ function formOp(col,id,pre={}){
       if(frete?.tipo==='cif'&&frete.valor>0&&frete.contaId){await put('movimentos',{...(fm[0]||{id:nid(),criadoEm:Date.now()}),tipo:'saida',data,valor:frete.valor,contaId:frete.contaId,descricao:`Frete CIF · ${rotOp(col,rec)} · ${pn}${frete.transportadora?' · '+frete.transportadora:''}`,categoria:'Frete de venda',parceiroId,ref:{col,id:opId,frete:true}});for(const m of fm.slice(1))await del('movimentos',m.id)}
       else for(const m of fm)await del('movimentos',m.id)}
     // um lançamento por conta; reaproveita os existentes na edição
-    for(const [i,pg] of pagamentos.entries()){const m0=proprios[i];
+    const {pares,sobra}=parear(pagamentos,proprios);
+    for(const [i,pg] of pagamentos.entries()){const m0=pares[i];
       await put('movimentos',comCheque({...(m0||{id:nid(),criadoEm:Date.now()}),tipo:isC?'saida':'entrada',data,valor:pg.valor,contaId:pg.contaId,descricao:desc+` (${forma==='credito'?'entrada · ':''}${pgTxt(pg,isC)})`+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria,parceiroId,ref:{col,id:opId}},m0))}
-    for(const m of proprios.slice(pagamentos.length))await del('movimentos',m.id);
+    for(const m of sobra)await del('movimentos',m.id);
     // orçamento que virou venda fica marcado como vendido
     if(orc)await put('orcamentos',{...orc,vendaId:opId});
     toast(`${rotOp(col,rec)} salva`);
