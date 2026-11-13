@@ -1,6 +1,6 @@
 import {S,byId,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl} from '../estado.js';
-import {pgResumo} from '../forms/pagamento.js';
+import {pgDetalhe,pgLinhaDet} from './pagresumo.js';
 import {codVenda,creditosClientes} from '../regras.js';
 import {histBtn} from './historico.js';
 import {brl,esc,fd,mLabel,mShort,num} from '../util.js';
@@ -36,8 +36,8 @@ function vAdiantamentos(){
       const a=l.a,dev=a.tipo==='devolucao';const v=a.vendaId?byId('vendas',a.vendaId):null;
       return `<tr><td class="num muted">${a.numero}</td><td class="num">${fd(a.data)}</td><td>${esc(parcNome(a.parceiroId))}</td>
       <td><span class="pill ${dev?'p-late':'p-ok'}">${dev?'Devolução':'Adiantamento'}</span>${v?` <span class="muted">· junto com a venda ${codVenda(v)}</span>`:''}${a.obs?`<div class="muted" style="font-size:12.5px">${esc(a.obs)}</div>`:''}</td>
-      <td class="r ${dev?'neg':'pos'}">${dev?'− ':'+ '}${brl(a.valor)}</td><td class="muted" style="font-size:12.5px">${(a.pagamentos||[]).length?pgResumo(a,dev):esc(contaNome(a.contaId))}</td>
-      <td class="acts"><button class="btn sm" data-act="adImp" data-id="${a.id}">Recibo</button> <button class="btn sm" data-act="editAdiant" data-id="${a.id}">Editar</button> <button class="btn sm danger" data-act="delAdiant" data-id="${a.id}">Excluir</button> ${histBtn('adiantamentos',a.id)}</td></tr>`}).join('')||`<tr><td colspan="7"><div class="empty"><b>Nada lançado em ${mLabel(mes)}</b>Mude o mês para ver outros lançamentos.</div></td></tr>`}
+      <td class="r ${dev?'neg':'pos'}">${dev?'− ':'+ '}${brl(a.valor)}</td><td class="muted" style="font-size:12.5px">${(a.pagamentos||[]).length?pgDetalhe(a.id,a.pagamentos,dev):esc(contaNome(a.contaId))}</td>
+      <td class="acts"><button class="btn sm" data-act="adImp" data-id="${a.id}">Recibo</button> <button class="btn sm" data-act="editAdiant" data-id="${a.id}">Editar</button> <button class="btn sm danger" data-act="delAdiant" data-id="${a.id}">Excluir</button> ${histBtn('adiantamentos',a.id)}</td></tr>${pgLinhaDet(a.id,a.pagamentos,dev,7)}`}).join('')||`<tr><td colspan="7"><div class="empty"><b>Nada lançado em ${mLabel(mes)}</b>Mude o mês para ver outros lançamentos.</div></td></tr>`}
     </tbody></table></div></div>`};
 }
 
