@@ -18,6 +18,7 @@ function addDays(s,n){const[y,m,d]=s.split('-').map(Number);const t=new Date(y,m
 const nid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const ICON={
   relatorios:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  resultado:'<path d="M4 4h16v16H4z"/><path d="M8 15l3-3 2 2 4-5M8 8h3"/>',
   painel:'<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',
   caixa:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/>',
   pagar:'<path d="M12 19V5M5 12l7 7 7-7"/>',

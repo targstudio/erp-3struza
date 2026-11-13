@@ -2,6 +2,7 @@ import {S,byId,cfg,put} from '../dados.js';
 import {formConta} from './conta.js';
 import {contaOpts,defaultConta,fv,modal,opt,toast} from '../modal.js';
 import {esc,fnum,nid,num,today} from '../util.js';
+import {campoMaterial,catOpts} from '../custos.js';
 
 /* --- movimento manual --- */
 function formMov(tipo,id){
@@ -23,10 +24,11 @@ function formMov(tipo,id){
     <div class="row"><label class="fl">Data<input type="date" name="data" id="mData" value="${m.data}"></label><label class="fl">Valor (R$)<input name="valor" id="mValor" inputmode="decimal" value="${m.valor?fnum(m.valor):''}"></label></div>
     <label class="fl">Descrição<input name="descricao" id="mDesc" value="${esc(m.descricao||'')}"></label>
     <div class="row"><label class="fl">Conta<select name="contaId" id="mConta">${contaOpts(m.contaId)}</select></label>
-    <label class="fl">Categoria<select name="categoria" id="mCat">${opt(cats,m.categoria,'—')}</select></label></div>
+    <label class="fl">Categoria<select name="categoria" id="mCat">${tipo==='saida'?catOpts(cats,m.categoria):opt(cats,m.categoria,'—')}</select></label></div>
+    ${tipo==='saida'?campoMaterial(m.material):''}
     <label class="fl">Cliente / fornecedor (opcional)<select name="parceiroId" id="mParc"><option value="">—</option>${S.parceiros.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(p=>`<option value="${p.id}" ${p.id===m.parceiroId?'selected':''}>${esc(p.nome)}</option>`).join('')}</select></label>`,
   {onSubmit:async f=>{const v=num(fv(f,'valor'));if(v<=0)throw'Informe um valor maior que zero.';if(!fv(f,'descricao'))throw'Informe a descrição.';
-    await put('movimentos',{...m,id:id||nid(),tipo,data:fv(f,'data')||today(),valor:v,descricao:fv(f,'descricao'),contaId:fv(f,'contaId'),categoria:fv(f,'categoria'),parceiroId:fv(f,'parceiroId'),criadoEm:m.criadoEm||Date.now()});toast(tipo==='entrada'?'Entrada lançada':'Saída lançada')}});
+    await put('movimentos',{...m,id:id||nid(),tipo,data:fv(f,'data')||today(),valor:v,descricao:fv(f,'descricao'),contaId:fv(f,'contaId'),categoria:fv(f,'categoria'),parceiroId:fv(f,'parceiroId'),...(tipo==='saida'?{material:fv(f,'material')}:{}),criadoEm:m.criadoEm||Date.now()});toast(tipo==='entrada'?'Entrada lançada':'Saída lançada')}});
 }
 
 export {formMov};

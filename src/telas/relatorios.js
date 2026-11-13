@@ -1,6 +1,7 @@
 import {S,byId,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl,perCtl,periodo} from '../estado.js';
 import {custoItem,custosMedios,margemVenda,porMaterial,statusT} from '../regras.js';
+import {CAT_APORTE,natureza} from '../custos.js';
 import {baixarCSVLinhas,slug} from './caixa.js';
 import {brl,esc,fd,fkg,fnum,mLabel,num,r2,swatch} from '../util.js';
 
@@ -17,8 +18,8 @@ function relDados(){
   compras.forEach(c=>{const e=forn.get(c.parceiroId)||{n:0,kg:0,total:0};e.n++;e.kg+=num(c.totalKg);e.total+=num(c.total);forn.set(c.parceiroId,e)});
   // despesas e outras receitas pelo caixa (compra e venda de material ficam de fora: já entram pelo custo e pelas vendas)
   S.movimentos.filter(m=>!m.pendente&&dentro(m)).forEach(m=>{if(m.ref?.col==='adiantamentos')return; // adiantamento não é receita: vira venda quando for abatido
-    if(m.tipo==='saida'&&m.categoria!=='Compra de material'&&!m.ref?.frete){const k=m.categoria||'Sem categoria';desp.set(k,(desp.get(k)||0)+num(m.valor))}
-    if(m.tipo==='entrada'&&m.categoria!=='Venda de material'&&!(m.ref&&m.ref.col==='vendas')&&!(m.ref&&m.ref.col==='titulos'&&byId('titulos',m.ref.id)?.ref?.col==='vendas')){const k=m.categoria||'Sem categoria';rec.set(k,(rec.get(k)||0)+num(m.valor))}});
+    if(m.tipo==='saida'&&m.categoria!=='Compra de material'&&natureza(m.categoria)!=='fora'&&!m.ref?.frete){const k=m.categoria||'Sem categoria';desp.set(k,(desp.get(k)||0)+num(m.valor))}
+    if(m.tipo==='entrada'&&m.categoria!=='Venda de material'&&m.categoria!==CAT_APORTE&&!(m.ref&&m.ref.col==='vendas')&&!(m.ref&&m.ref.col==='titulos'&&byId('titulos',m.ref.id)?.ref?.col==='vendas')){const k=m.categoria||'Sem categoria';rec.set(k,(rec.get(k)||0)+num(m.valor))}});
   // preço médio separado por material: compra × venda de cada tipo (grão, moído…)
   const pc=porMaterial(compras),pv=porMaterial(vendas);
   const precos=[...new Set([...pc,...pv].map(m=>m.tipo))].map(t=>({tipo:t,c:pc.find(m=>m.tipo===t),v:pv.find(m=>m.tipo===t)}));

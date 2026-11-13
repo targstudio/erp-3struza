@@ -5,6 +5,7 @@ import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
 import {ask,fv,modal,opt,toast} from '../modal.js';
 import {genTitulos,renovar,rotOp} from '../regras.js';
 import {$,addMonths,brl,esc,fd,fnum,nid,num,r2,today} from '../util.js';
+import {campoMaterial,catOpts} from '../custos.js';
 
 /* --- título (conta a pagar / receber) --- */
 function formTitulo(lado,id){
@@ -14,7 +15,8 @@ function formTitulo(lado,id){
   modal(id?'Editar lançamento':(lado==='pagar'?'Nova conta a pagar':'Nova conta a receber'),`
     <label class="fl">Descrição<input name="descricao" id="tiDesc" value="${esc(t.descricao||'')}" placeholder="${lado==='pagar'?'Ex.: Aluguel do barracão, Conta de luz':'Ex.: Venda de PP granulado, Serviço de moagem'}"></label>
     <div class="row"><label class="fl">${lado==='pagar'?'Fornecedor / favorecido':'Cliente / pagador'}<select name="parceiroId" id="tiParc"><option value="">—</option>${parcs.map(p=>`<option value="${p.id}" ${p.id===t.parceiroId?'selected':''}>${esc(p.nome)}</option>`).join('')}</select></label>
-    <label class="fl">Categoria<select name="categoria" id="tiCat">${opt(cats,t.categoria,'—')}</select></label></div>
+    <label class="fl">Categoria<select name="categoria" id="tiCat">${lado==='pagar'?catOpts(cats,t.categoria):opt(cats,t.categoria,'—')}</select></label></div>
+    ${lado==='pagar'?campoMaterial(t.material):''}
     ${lado==='pagar'?`<div><div class="hint" style="margin-bottom:6px;font-weight:600">Tipo de conta</div><div class="opts"><label><input type="radio" name="natureza" value="fixa" ${t.natureza==='fixa'?'checked':''}>Fixa (todo mês, mesmo valor)</label><label><input type="radio" name="natureza" value="variavel" ${t.natureza!=='fixa'?'checked':''}>Pontual / variável</label></div></div>`:''}
     ${id?`<div class="row"><label class="fl">Vencimento<input type="date" name="vencimento" id="tiVenc" value="${t.vencimento}"></label><label class="fl">Valor (R$)<input name="valor" id="tiValor" inputmode="decimal" value="${fnum(t.valor)}"></label></div>
       ${t.totalParcelas>1||t.renova?`<div class="chk"><label><input type="checkbox" name="propagar"> Aplicar descrição, categoria e valor às próximas parcelas em aberto deste grupo</label></div>`:''}`:`
@@ -39,10 +41,10 @@ function formTitulo(lado,id){
     f.addEventListener('input',upd);f.addEventListener('change',upd);upd()},
    onSubmit:async f=>{
     const desc=fv(f,'descricao');if(!desc)throw'Informe a descrição.';const v=num(fv(f,'valor'));if(v<=0)throw'Informe um valor maior que zero.';
-    const base={lado,descricao:desc,parceiroId:fv(f,'parceiroId'),categoria:fv(f,'categoria'),natureza:lado==='pagar'?f.elements.natureza.value:'',obs:fv(f,'obs')};
+    const base={lado,descricao:desc,parceiroId:fv(f,'parceiroId'),categoria:fv(f,'categoria'),natureza:lado==='pagar'?f.elements.natureza.value:'',...(lado==='pagar'?{material:fv(f,'material')}:{}),obs:fv(f,'obs')};
     if(id){await put('titulos',{...t,...base,vencimento:fv(f,'vencimento')||t.vencimento,valor:r2(v)});
       if(t.renova&&f.elements.renovaEdit&&!f.elements.renovaEdit.checked){for(const o of S.titulos.filter(o=>o.grupo===t.grupo&&o.renova))await put('titulos',{...o,renova:false})}
-      if(f.elements.propagar?.checked){for(const o of S.titulos.filter(o=>o.grupo===t.grupo&&o.id!==t.id&&!o.pago&&o.parcela>t.parcela))await put('titulos',{...o,descricao:desc,categoria:base.categoria,natureza:base.natureza,parceiroId:base.parceiroId,valor:r2(v)})}
+      if(f.elements.propagar?.checked){for(const o of S.titulos.filter(o=>o.grupo===t.grupo&&o.id!==t.id&&!o.pago&&o.parcela>t.parcela))await put('titulos',{...o,descricao:desc,categoria:base.categoria,natureza:base.natureza,material:base.material||'',parceiroId:base.parceiroId,valor:r2(v)})}
       toast('Lançamento atualizado');return}
     const modo=f.elements.modo.value;const renova=modo==='recorrente'&&f.elements.renova.checked;
     const n=modo==='unica'?1:renova?12:Math.max(1,Math.min(120,parseInt(fv(f,'n'))||1));
