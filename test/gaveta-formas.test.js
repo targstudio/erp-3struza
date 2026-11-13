@@ -129,3 +129,28 @@ describe('formas de recebimento por gaveta',()=>{
     expect(m.meio).toBe('cartao');expect(tipoRecebimento(m)).toBe('cartao');
   });
 });
+
+describe('editar cheque a compensar',()=>{
+  const ch={titular:'proprio',nome:'',banco:'',numero:'',bomPara:'2026-11-20'};
+  const venda={id:'v1',numero:1,data:'2026-11-10',parceiroId:'cli',itens:[],total:500,forma:'cheque',contaId:'gaveta',pagamentos:[{meio:'cheque',contaId:'gaveta',valor:500,cheque:ch}]};
+  const mov=extra=>({id:'mv1',tipo:'entrada',valor:500,contaId:'gaveta',data:'2026-11-10',meio:'cheque',cheque:ch,pendente:true,venceEm:'2026-11-20',descricao:'Venda 1 (Cheque do cliente · bom para 20/11/2026)',ref:{col:'vendas',id:'v1'},...extra});
+
+  it('completa banco e número e muda o bom para, na venda também',async()=>{
+    montar({...base(),vendas:[venda],movimentos:[mov()]});
+    expect(vCheques().html).toMatch(/data-act="chqDados" data-id="mv1">Editar/);
+    formDadosCheque('mv1');
+    muda($('#modalRoot [name=banco]'),'Caixa');muda($('#modalRoot [name=numero]'),'851');muda($('#modalRoot [name=bomPara]'),'2026-12-05');
+    await salvarModal();
+    const m=S.movimentos[0];
+    expect(m.cheque).toMatchObject({banco:'Caixa',numero:'851',bomPara:'2026-12-05'});
+    expect(m).toMatchObject({pendente:true,venceEm:'2026-12-05'});
+    expect(m.descricao).toBe('Venda 1 (Cheque do cliente nº 851 Caixa · bom para 05/12/2026)');
+    expect(S.vendas[0].pagamentos[0].cheque).toMatchObject({banco:'Caixa',numero:'851',bomPara:'2026-12-05'});
+  });
+
+  it('com o mesmo bom para mantém o prazo reprogramado',async()=>{
+    montar({...base(),vendas:[venda],movimentos:[mov({venceEm:'2026-11-27',prazos:[{de:'2026-11-20',para:'2026-11-27'}]})]});
+    formDadosCheque('mv1');muda($('#modalRoot [name=numero]'),'9');await salvarModal();
+    expect(S.movimentos[0]).toMatchObject({venceEm:'2026-11-27'});expect(S.movimentos[0].prazos).toHaveLength(1);
+  });
+});
