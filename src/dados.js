@@ -1,5 +1,6 @@
 import {render} from './render.js';
 import {DB,MODE,enqueue} from './sync.js';
+import {CAT_RECEBER_NOVAS,CUSTOS_PADRAO} from './custos.js';
 
 /* ===================== dados ===================== */
 const COLS=['contas','parceiros','movimentos','compras','vendas','titulos','ajustes','config','orcamentos','adiantamentos'];
@@ -11,7 +12,11 @@ const DEF_CFG={
   catReceber:['Venda de material','Serviço de moagem','Empréstimo','Outros'],
   pesoSaco:25,pesoBag:1000
 };
-const cfg=()=>Object.assign({},DEF_CFG,(S.config.find(c=>c.id==='geral')||{}));
+// as categorias de custo novas entram uma vez na lista salva (custosV1); depois o que o usuário remover fica removido
+const juntar=(a,b)=>[...a,...b.filter(x=>!a.includes(x))];
+function cfg(){const s=S.config.find(c=>c.id==='geral')||{};const c=Object.assign({},DEF_CFG,s);
+  if(!s.custosV1){c.catPagar=juntar(c.catPagar,Object.keys(CUSTOS_PADRAO));c.catReceber=juntar(c.catReceber,CAT_RECEBER_NOVAS);c.custosV1=true}
+  return c}
 const byId=(col,id)=>S[col].find(x=>x.id===id);
 const contaNome=id=>byId('contas',id)?.nome||'—';
 const parcNome=id=>byId('parceiros',id)?.nome||'—';

@@ -16,6 +16,7 @@ import {baixarCSV} from './telas/caixa.js';
 import {saveCfg} from './telas/configuracoes.js';
 import {HIST,descReg,loadHist,verHist} from './telas/historico.js';
 import {csvRel,csvTit} from './telas/relatorios.js';
+import {csvRes} from './telas/resultado.js';
 import {NOMEOP,rotOp} from './regras.js';
 import {addMonths,brl,esc,num} from './util.js';
 
@@ -37,7 +38,7 @@ document.addEventListener('click',async e=>{
     case 'filtroConta':UI.filtroConta=UI.filtroConta===id?'':id;render();break;
     case 'per':UI.per=b.dataset.v;render();break;
     case 'csv':baixarCSV();break;case 'extratoImp':extratoCaixa();break;
-    case 'csvTit':csvTit(b.dataset.lado);break;case 'csvRel':csvRel(b.dataset.k);break;case 'recibo':recibo(b.dataset.col,id);break;case 'romaneio':romaneio(id);break;
+    case 'csvTit':csvTit(b.dataset.lado);break;case 'csvRel':csvRel(b.dataset.k);break;case 'csvRes':csvRes(b.dataset.k);break;case 'recibo':recibo(b.dataset.col,id);break;case 'romaneio':romaneio(id);break;
     case 'backup':baixarBackup();break;case 'backupJson':baixarBackupJSON();break;
     case 'caixaMais':UI.caixaLim=(UI.caixaLim||200)+500;render();break;
     case 'filtroT':UI.filtroT=b.dataset.v;render();break;
@@ -72,7 +73,7 @@ document.addEventListener('click',async e=>{
     case 'cfgRen':{const k=b.dataset.k,i=+b.dataset.i,old=cfg()[k][i];
       modal('Renomear',`<label class="fl">Novo nome para “${esc(old)}”<input name="v" value="${esc(old)}" required></label>`,{submit:'Renomear',onSubmit:async f=>{
         const v=fv(f,'v');if(!v)throw'Informe o nome.';if(v===old)return;const l=cfg()[k].slice();if(l.includes(v))throw'Esse nome já existe na lista.';
-        l[i]=v;await saveCfg({[k]:l});
+        l[i]=v;const nc=cfg().natCat;await saveCfg({[k]:l,...(k==='catPagar'&&nc?.[old]?{natCat:Object.fromEntries(Object.entries(nc).map(([a,b])=>[a===old?v:a,b]))}:{})});
         const campo=k==='tipos'?'tipo':k==='cores'?'cor':'categoria';let n=0;
         if(campo==='categoria'){for(const col of ['movimentos','titulos'])for(const x of S[col].filter(x=>x.categoria===old)){await put(col,{...x,categoria:v});n++}}
         else{for(const col of ['compras','vendas'])for(const x of S[col].filter(x=>(x.itens||[]).some(it=>it[campo]===old))){await put(col,{...x,itens:x.itens.map(it=>it[campo]===old?{...it,[campo]:v}:it)});n++}
@@ -93,10 +94,14 @@ document.addEventListener('change',e=>{const a=e.target.dataset?.act;
   if(a==='fConta'){UI.filtroConta=e.target.value;render()}
   if(a==='estTipo'){UI.estTipo=e.target.value;render()}
   if(a==='estCor'){UI.estCor=e.target.value;render()}
-  if(a==='estZero'){UI.estZero=e.target.checked;render()}});
+  if(a==='estZero'){UI.estZero=e.target.checked;render()}
+  if(a==='natCat'){saveCfg({natCat:{...(cfg().natCat||{}),[e.target.dataset.cat]:e.target.value}}).then(()=>toast('Classificação salva')).catch(ex=>toast('Erro: '+(ex?.message||ex)))}});
 let bt=null;document.addEventListener('input',e=>{if(e.target.id==='busca'){UI.busca=e.target.value;clearTimeout(bt);bt=setTimeout(render,180)}});
 document.addEventListener('submit',async e=>{const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
   try{if(f.dataset.form==='cfgAdd'){const k=f.dataset.k;const v=f.elements.v.value.trim();if(!v)return;const l=cfg()[k];if(l.includes(v)){toast('Já existe');return}await saveCfg({[k]:[...l,v]});toast('Adicionado')}
-  if(f.dataset.form==='cfgPesos'){await saveCfg({pesoSaco:num(f.elements.pesoSaco.value)||25,pesoBag:num(f.elements.pesoBag.value)||1000});toast('Pesos salvos')}}catch(ex){toast('Erro: '+(ex?.message||ex))}});
+  if(f.dataset.form==='cfgCapital'){const g=n=>f.elements[n].value.trim();const tj=num(g('taxaJuros')),tc=num(g('taxaCdb'));
+    if(tj<0||tc<0)throw'Taxa não pode ser negativa.';if(num(g('capitalInicial'))&&!g('capitalDesde'))throw'Informe a data em que o capital entrou.';
+    await saveCfg({capitalInicial:num(g('capitalInicial')),capitalDesde:g('capitalDesde'),taxaJuros:tj,taxaCdb:tc,mesesInvest:Math.max(1,Math.round(num(g('mesesInvest')))||12)});toast('Capital e juros salvos')}
+  if(f.dataset.form==='cfgPesos'){await saveCfg({pesoSaco:num(f.elements.pesoSaco.value)||25,pesoBag:num(f.elements.pesoBag.value)||1000});toast('Pesos salvos')}}catch(ex){toast(typeof ex==='string'?ex:'Erro: '+(ex?.message||ex))}});
 
 export {bt};
