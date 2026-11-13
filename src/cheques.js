@@ -91,28 +91,33 @@ function formReprogramar(id){const m=byId('movimentos',id);if(!m)return;const v=
     await put('movimentos',{...m,pendente:true,venceEm:para,prazos:[...(m.prazos||[]),{de:v,para,em:today(),motivo}]});
     toast('Novo prazo: '+fd(para))}});
 }
-function formDadosCheque(id){const m=byId('movimentos',id);if(!m)return;const c=m.cheque||{};const isC=m.tipo==='saida';
-  modal('Registrar dados do cheque',`
-    <div class="box"><div><b>${brl(m.valor)}</b> · ${m.parceiroId?esc(parcNome(m.parceiroId)):'cheque '+(isC?'emitido':'recebido')}</div><div class="muted">Recebido em ${fd(m.dataOrig||m.data)} · prazo para registrar ${fd(c.prazoDados)}</div><div class="muted" style="font-size:12.5px">${esc(m.descricao||'')}</div></div>
+// mesmos dados de cheque (para achar o pagamento correspondente na venda, compra, adiantamento ou conta)
+const CHQ_CAMPOS=['titular','nome','banco','numero','bomPara','semDados','prazoDados'];
+const mesmoCheque=(a={},b={})=>CHQ_CAMPOS.every(k=>(a[k]||'')===(b[k]||''));
+// editar um cheque a compensar: completar os dados de um cheque que ainda não tinha chegado, ou corrigir banco, número, titular e bom para
+function formDadosCheque(id){const m=byId('movimentos',id);if(!m||!m.pendente)return;const c=m.cheque||{};const isC=m.tipo==='saida';const reg=!!c.semDados;
+  modal(reg?'Registrar dados do cheque':'Editar cheque',`
+    <div class="box"><div><b>${brl(m.valor)}</b> · ${m.parceiroId?esc(parcNome(m.parceiroId)):'cheque '+(isC?'emitido':'recebido')}</div><div class="muted">${isC?'Emitido':'Recebido'} em ${fd(m.dataOrig||m.data)}${reg?' · prazo para registrar '+fd(c.prazoDados):''}</div><div class="muted" style="font-size:12.5px">${esc(m.descricao||'')}</div></div>
     <div class="row"><label class="fl">Cheque<select name="titular"><option value="proprio" ${c.titular!=='terceiro'?'selected':''}>${isC?'Da 3STRUZA':'Do próprio cliente'}</option><option value="terceiro" ${c.titular==='terceiro'?'selected':''}>De terceiro</option></select></label>
       <label class="fl">Titular (se for de terceiro)<input name="nome" value="${esc(c.nome||'')}" placeholder="Quem emitiu"></label></div>
-    <div class="row"><label class="fl">Banco<input name="banco" value="${esc(c.banco||'')}" required></label>
-      <label class="fl">Nº do cheque<input name="numero" value="${esc(c.numero||'')}" required></label>
+    <div class="row"><label class="fl">Banco<input name="banco" value="${esc(c.banco||'')}" ${reg?'required':''}></label>
+      <label class="fl">Nº do cheque<input name="numero" value="${esc(c.numero||'')}" ${reg?'required':''}></label>
       <label class="fl">Vencimento (bom para)<input type="date" name="bomPara" value="${esc(c.bomPara||'')}" required></label></div>
-    <p class="hint" style="margin:0">Depois de registrado, o cheque segue para a lista de a compensar e o alerta passa a ser o do vencimento.</p>`,
-  {submit:'Salvar dados do cheque',onSubmit:async f=>{
+    <p class="hint" style="margin:0">${reg?'Depois de registrado, o cheque segue para a lista de a compensar e o alerta passa a ser o do vencimento.':'Valor e caixa vêm da venda, compra ou conta de origem: para mudar, edite por lá.'+((m.prazos||[]).length?' Se mudar o bom para, o vencimento passa a ser a nova data.':'')}</p>`,
+  {submit:reg?'Salvar dados do cheque':'Salvar cheque',onSubmit:async f=>{
     const ch={titular:fv(f,'titular')||'proprio',nome:fv(f,'titular')==='terceiro'?fv(f,'nome').trim():'',banco:fv(f,'banco').trim(),numero:fv(f,'numero').trim(),bomPara:fv(f,'bomPara')};
     if(ch.titular==='terceiro'&&!ch.nome)throw'Informe o titular do cheque de terceiro.';
-    if(!ch.banco||!ch.numero)throw'Informe o banco e o número do cheque.';
+    if(reg&&(!ch.banco||!ch.numero))throw'Informe o banco e o número do cheque.';
     if(!ch.bomPara)throw'Informe o vencimento (bom para) do cheque.';
     const txt0=pgTxt({meio:'cheque',cheque:c},isC),txt1=pgTxt({meio:'cheque',cheque:ch},isC);
-    const mesmoVence=!!(m.prazos||[]).length&&c.bomPara===ch.bomPara;
-    await put('movimentos',{...m,cheque:ch,venceEm:mesmoVence?m.venceEm:ch.bomPara,descricao:String(m.descricao||'').replace(txt0,txt1),dadosEm:today()});
+    // bom para igual: mantém o vencimento (inclusive um prazo reprogramado); mudou: o vencimento passa a ser o novo bom para
+    const mesmo=!reg&&(c.bomPara||'')===ch.bomPara;
+    await put('movimentos',{...m,cheque:ch,venceEm:mesmo?venceCheque(m):ch.bomPara,prazos:mesmo?m.prazos||[]:[],descricao:String(m.descricao||'').replace(txt0,txt1),...(reg?{dadosEm:today()}:{})});
     // a compra, venda, adiantamento ou conta de origem guarda o cheque nos pagamentos: atualiza lá também
     const src=m.ref&&byId(m.ref.col,m.ref.id);
-    if(src?.pagamentos?.length){const i=src.pagamentos.findIndex(p=>p.meio==='cheque'&&p.cheque?.semDados&&Math.abs(num(p.valor)-num(m.valor))<0.005&&p.cheque.prazoDados===c.prazoDados);
+    if(src?.pagamentos?.length){const i=src.pagamentos.findIndex(p=>p.meio==='cheque'&&Math.abs(num(p.valor)-num(m.valor))<0.005&&mesmoCheque(p.cheque,c));
       if(i>=0)await put(m.ref.col,{...src,pagamentos:src.pagamentos.map((p,j)=>j===i?{...p,cheque:ch}:p)})}
-    toast('Dados do cheque registrados')}});
+    toast(reg?'Dados do cheque registrados':'Cheque atualizado')}});
 }
 async function desfazerCompensacao(id){const m=byId('movimentos',id);if(!m?.compensadoEm)return;
   const {compensadoEm,dataOrig,contaOrig,...r}=m;
