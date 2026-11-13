@@ -1,6 +1,7 @@
 import {S,byId,contaNome,parcNome} from './dados.js';
 import {UI,periodo} from './estado.js';
 import {pgTxt} from './forms/pagamento.js';
+import {ORDEM,TIPOREC,recebidosPorConta} from './cheques.js';
 import {modal} from './modal.js';
 import {EMB,FORMA,FRETE,linked,codVenda,creditoCliente,rotOp,TIPOCONTA} from './regras.js';
 import {brl,esc,fd,fkg,fnum,num,today} from './util.js';
@@ -144,6 +145,12 @@ function extratoCaixa(){
       ${pos.map(x=>`<tr><td>${esc(x.c.nome)}${x.c.detalhe?`<div class="muted">${esc(x.c.detalhe)}</div>`:''}</td><td>${TIPOCONTA[x.c.tipo]||''}</td><td class="r">${brl(x.antes)}</td><td class="r pos">${brl(x.e)}</td><td class="r neg">${brl(x.s)}</td><td class="r"><b>${brl(x.depois)}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="2">Total</td><td class="r">${brl(tot.antes)}</td><td class="r">${brl(tot.e)}</td><td class="r">${brl(tot.s)}</td><td class="r">${brl(tot.depois)}</td></tr></tfoot></table>
       <div class="muted">Entradas e saídas por caixa incluem as transferências entre caixas; no resumo do topo elas não entram, porque o dinheiro só mudou de lugar.</div>`}
+    ${(()=>{const rec=recebidosPorConta(ini,fim);const cs=(fc?contas.filter(c=>c.id===fc):contas).filter(c=>rec.get(c.id));if(!cs.length)return'';
+      const ks=ORDEM.filter(k=>cs.some(c=>rec.get(c.id).tipos[k]));const pend=cs.reduce((a,c)=>a+Object.values(rec.get(c.id).tipos).reduce((b,x)=>b+x.pendente,0),0);
+      return `<h2>Recebimentos por forma de pagamento</h2><table><thead><tr><th>Caixa</th>${ks.map(k=>`<th class="r">${TIPOREC[k]}</th>`).join('')}<th class="r">Total recebido</th></tr></thead><tbody>
+      ${cs.map(c=>{const r=rec.get(c.id);return `<tr><td>${esc(c.nome)}</td>${ks.map(k=>`<td class="r">${r.tipos[k]?brl(r.tipos[k].valor):'<span class="muted">—</span>'}</td>`).join('')}<td class="r"><b>${brl(r.total)}</b></td></tr>`}).join('')}</tbody>
+      ${cs.length>1?`<tfoot><tr><td>Total</td>${ks.map(k=>`<td class="r">${brl(cs.reduce((a,c)=>a+(rec.get(c.id).tipos[k]?.valor||0),0))}</td>`).join('')}<td class="r">${brl(cs.reduce((a,c)=>a+rec.get(c.id).total,0))}</td></tr></tfoot>`:''}</table>
+      <div class="muted">Cheque à vista: bom para no dia do recebimento. Cheque a prazo: bom para depois.${pend>0.005?` Inclui ${brl(pend)} em cheques que ainda vão compensar (fora do saldo).`:''}</div>`})()}
     <h2>Lançamentos</h2><table><thead><tr><th>Data</th><th>Descrição</th><th>Cliente / fornecedor</th>${fc?'':'<th>Caixa</th>'}<th class="r">Entrada</th><th class="r">Saída</th><th class="r">Saldo</th></tr></thead><tbody>
       <tr><td></td><td class="muted">Saldo inicial</td><td></td>${fc?'':'<td></td>'}<td></td><td></td><td class="r">${brl(tot.antes)}</td></tr>
       ${movs.map(({m,v,acc})=>`<tr><td class="r" style="text-align:left">${fd(m.data)}</td><td>${esc(m.descricao||'')}${m.categoria?`<div class="muted">${esc(m.categoria)}</div>`:''}</td><td>${m.parceiroId?esc(parcNome(m.parceiroId)):''}</td>

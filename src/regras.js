@@ -16,10 +16,10 @@ const statusT=t=>t.pago?'pago':(t.vencimento<today()?'atrasado':'aberto');
 const STATUS_PILL={pago:['p-ok','Pago'],atrasado:['p-late','Atrasado'],aberto:['p-open','Em aberto']};
 function pillT(t){const s=statusT(t);const[k,l]=STATUS_PILL[s];return `<span class="pill ${k}">${t.lado==='receber'&&s==='pago'?'Recebido':l}</span>`}
 const EMB={saco:'Saco',bigbag:'Big Bag',granel:'Granel'};
-const FORMA={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque',permuta:'Troca / Permuta',credito:'Crédito (a prazo)',misto:'Vários',adiantamento:'Adiantamento do cliente'};
+const FORMA={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque',cartao:'Cartão de crédito',permuta:'Troca / Permuta',credito:'Crédito (a prazo)',misto:'Vários',adiantamento:'Adiantamento do cliente'};
 // formas que não aparecem para escolher: são definidas pelo próprio lançamento
 const FORMA_AUTO=new Set(['misto','adiantamento']);
-const MEIO={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque'};const AVISTA=new Set(['dinheiro','pix','cheque','misto']);
+const MEIO={dinheiro:'Dinheiro',pix:'PIX',cheque:'Cheque',cartao:'Cartão de crédito'};const AVISTA=new Set(['dinheiro','pix','cheque','cartao','misto']);
 const TIPOCONTA={banco:'Banco · C/C',gaveta:'Físico · Gaveta',credito:'Crédito com terceiro'};
 const stockKey=it=>[it.tipo,it.cor,it.embalagem,it.embalagem==='granel'?0:num(it.pesoUn)].join('|');
 
