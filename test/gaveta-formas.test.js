@@ -10,11 +10,12 @@ import {vCheques} from '../src/telas/cheques.js';
 import {vPainel} from '../src/telas/painel.js';
 import {UI} from '../src/estado.js';
 import {addDays,today} from '../src/util.js';
-import {montar,conta,salvarModal} from './ajuda.js';
+import {montar,conta,item,salvarModal} from './ajuda.js';
 
 const $=s=>document.querySelector(s);
 const muda=(el,v)=>{if(el.type==='checkbox')el.checked=v;else el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))};
 const hoje=today();
+const ck=k=>$('#pgRows [data-ck='+k+']');
 
 const base=()=>({contas:[conta('banco',0),conta('gaveta',0,{tipo:'gaveta',nome:'Gaveta loja'})],parceiros:[{id:'cli',nome:'Cliente X',cliente:true}],
   titulos:[{id:'t1',lado:'receber',descricao:'Venda 1',valor:1000,vencimento:hoje,parcela:1,totalParcelas:1,grupo:'g',pago:false,parceiroId:'cli'}]});
@@ -58,8 +59,8 @@ describe('cheque que ainda não chegou',()=>{
 
   it('registrar os dados depois atualiza o cheque, o vencimento e o pagamento da conta',async()=>{
     const m=await receberSemDados();
-    formDadosCheque(m.id);
-    muda($('#modalRoot [name=banco]'),'Itaú');muda($('#modalRoot [name=numero]'),'000777');muda($('#modalRoot [name=bomPara]'),addDays(hoje,20));
+    formDadosCheque(m.id);muda(ck('semDados'),false);
+    muda(ck('banco'),'Itaú');muda(ck('numero'),'000777');muda(ck('bomPara'),addDays(hoje,20));
     await salvarModal();
     const c=S.movimentos.find(x=>x.id===m.id);
     expect(c.cheque).toEqual({titular:'proprio',nome:'',banco:'Itaú',numero:'000777',bomPara:addDays(hoje,20)});
@@ -72,7 +73,7 @@ describe('cheque que ainda não chegou',()=>{
 
   it('não salva os dados sem banco, número e bom para',async()=>{
     const m=await receberSemDados();
-    formDadosCheque(m.id);muda($('#modalRoot [name=banco]'),'Itaú');
+    formDadosCheque(m.id);muda(ck('semDados'),false);muda(ck('banco'),'Itaú');muda(ck('bomPara'),addDays(hoje,20));
     await expect(salvarModal()).rejects.toThrow(/número/);
   });
 });
@@ -139,7 +140,7 @@ describe('editar cheque a compensar',()=>{
     montar({...base(),vendas:[venda],movimentos:[mov()]});
     expect(vCheques().html).toMatch(/data-act="chqDados" data-id="mv1">Editar/);
     formDadosCheque('mv1');
-    muda($('#modalRoot [name=banco]'),'Caixa');muda($('#modalRoot [name=numero]'),'851');muda($('#modalRoot [name=bomPara]'),'2026-12-05');
+    muda(ck('banco'),'Caixa');muda(ck('numero'),'851');muda(ck('bomPara'),'2026-12-05');
     await salvarModal();
     const m=S.movimentos[0];
     expect(m.cheque).toMatchObject({banco:'Caixa',numero:'851',bomPara:'2026-12-05'});
@@ -150,7 +151,62 @@ describe('editar cheque a compensar',()=>{
 
   it('com o mesmo bom para mantém o prazo reprogramado',async()=>{
     montar({...base(),vendas:[venda],movimentos:[mov({venceEm:'2026-11-27',prazos:[{de:'2026-11-20',para:'2026-11-27'}]})]});
-    formDadosCheque('mv1');muda($('#modalRoot [name=numero]'),'9');await salvarModal();
+    formDadosCheque('mv1');muda(ck('numero'),'9');await salvarModal();
     expect(S.movimentos[0]).toMatchObject({venceEm:'2026-11-27'});expect(S.movimentos[0].prazos).toHaveLength(1);
+  });
+});
+
+describe('dividir o cheque em vários cheques e outras formas',()=>{
+  const ch={titular:'proprio',nome:'',banco:'',numero:'',bomPara:'',semDados:true,prazoDados:'2026-11-20'};
+  const venda={id:'v1',numero:1,data:'2026-11-10',parceiroId:'cli',itens:[],total:3000,forma:'cheque',contaId:'gaveta',pagamentos:[{meio:'cheque',contaId:'gaveta',valor:3000,cheque:ch}]};
+  const mov={id:'mv1',tipo:'entrada',valor:3000,contaId:'gaveta',data:'2026-11-10',meio:'cheque',cheque:ch,pendente:true,venceEm:'2026-11-20',descricao:'Venda 1 · Cliente X (Cheque do cliente · dados pendentes até 20/11/2026)',ref:{col:'vendas',id:'v1'},parceiroId:'cli'};
+  const linha=i=>$(`#pgRows [data-pg="${i}"]`);
+  const set=(i,k,v)=>muda(linha(i).querySelector(`[data-pk=${k}],[data-ck=${k}]`),v);
+
+  it('2 cheques + PIX: um lançamento por parte e a venda fica com as 3 formas',async()=>{
+    montar({...base(),vendas:[venda],movimentos:[mov]});
+    formDadosCheque('mv1');
+    set(0,'semDados',false);set(0,'banco','Itaú');set(0,'numero','1');set(0,'bomPara','2026-12-01');set(0,'valor','1000');
+    $('#addPg').click();set(1,'meio','cheque');set(1,'banco','Itaú');set(1,'numero','2');set(1,'bomPara','2027-01-01');set(1,'valor','1500');
+    $('#addPg').click();set(2,'meio','pix');set(2,'contaId','banco');
+    muda($('#modalRoot [name=dataOutras]'),'2026-11-13');
+    await salvarModal();
+    const ms=S.movimentos.filter(m=>m.ref?.id==='v1');
+    expect(ms).toHaveLength(3);
+    expect(ms[0]).toMatchObject({id:'mv1',valor:1000,pendente:true,venceEm:'2026-12-01',data:'2026-11-10'});
+    expect(ms[1]).toMatchObject({valor:1500,pendente:true,venceEm:'2027-01-01',meio:'cheque'});
+    expect(ms[2]).toMatchObject({valor:500,meio:'pix',contaId:'banco',data:'2026-11-13'});expect(ms[2].pendente).toBeUndefined();
+    expect(ms[2].descricao).toBe('Venda 1 · Cliente X (PIX 3/3)');
+    expect(saldoConta('banco')).toBe(500);
+    expect(S.vendas[0].forma).toBe('misto');
+    expect(S.vendas[0].pagamentos.map(p=>[p.meio,p.valor])).toEqual([['cheque',1000],['cheque',1500],['pix',500]]);
+  });
+
+  it('a soma precisa fechar o valor do cheque',async()=>{
+    montar({...base(),vendas:[venda],movimentos:[mov]});
+    formDadosCheque('mv1');set(0,'valor','1000');$('#addPg').click();set(1,'meio','dinheiro');set(1,'valor','500');
+    await expect(salvarModal()).rejects.toThrow(/soma/);
+  });
+
+  it('trocar tudo por dinheiro tira da lista de cheques e entra no saldo',async()=>{
+    montar({...base(),vendas:[venda],movimentos:[mov]});
+    formDadosCheque('mv1');set(0,'meio','dinheiro');await salvarModal();
+    const m=S.movimentos[0];
+    expect(m.pendente).toBeUndefined();expect(m.meio).toBe('dinheiro');expect(m.cheque).toBeNull();
+    expect(saldoConta('gaveta')).toBe(3000);expect(S.vendas[0].forma).toBe('dinheiro');
+  });
+});
+
+describe('editar a venda depois de dividir',()=>{
+  it('cada cheque continua ligado ao seu lançamento, mesmo fora de ordem',async()=>{
+    const c1={titular:'proprio',nome:'',banco:'A',numero:'1',bomPara:'2026-12-01'},c2={titular:'proprio',nome:'',banco:'B',numero:'2',bomPara:'2027-01-01'};
+    const venda={id:'v1',numero:1,data:'2026-11-10',parceiroId:'cli',itens:[item('PP Moído','Preto',500,5)],total:2500,totalMat:2500,entrada:0,parcelas:0,frete:null,impostoPct:0,forma:'cheque',contaId:'gaveta',pagamentos:[{meio:'cheque',contaId:'gaveta',valor:1000,cheque:c1},{meio:'cheque',contaId:'gaveta',valor:1500,cheque:c2}]};
+    const mv=(id,v,c,extra)=>({id,tipo:'entrada',valor:v,contaId:'gaveta',data:'2026-11-10',meio:'cheque',cheque:c,pendente:true,venceEm:c.bomPara,ref:{col:'vendas',id:'v1'},...extra});
+    // na ordem do banco, o segundo cheque vem primeiro e já foi reprogramado
+    montar({...base(),compras:[{id:'c1',numero:1,data:'2026-09-01',parceiroId:'cli',total:2000,forma:'pix',itens:[item('PP Moído','Preto',1000,2)]}],vendas:[venda],movimentos:[mv('m2',1500,c2,{venceEm:'2027-02-01',prazos:[{de:'2027-01-01',para:'2027-02-01'}]}),mv('m1',1000,c1)]});
+    const {formOp}=await import('../src/forms/operacao.js');
+    formOp('vendas','v1');await salvarModal();
+    expect(S.movimentos.find(m=>m.id==='m2')).toMatchObject({valor:1500,venceEm:'2027-02-01'});
+    expect(S.movimentos.find(m=>m.id==='m1')).toMatchObject({valor:1000,venceEm:'2026-12-01'});
   });
 });

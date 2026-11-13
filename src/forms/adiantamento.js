@@ -1,4 +1,4 @@
-import {comCheque} from '../cheques.js';
+import {comCheque,parear} from '../cheques.js';
 import {S,byId,del,parcNome,put} from '../dados.js';
 import {pgBox,pgCollect,pgInit,pgMount,pgTxt} from './pagamento.js';
 import {parcFields} from './parceiro.js';
@@ -59,10 +59,10 @@ function formAdiant(id,pre={}){
     await put('adiantamentos',rec);
     // um lançamento de caixa por conta; reaproveita os existentes na edição
     const pn=novoParc?.nome||parcNome(parceiroId);const desc=`${rotOp('adiantamentos',rec)} · ${pn}`;
-    const proprios=linked(aid).mov;
-    for(const [i,pg] of pagamentos.entries())await put('movimentos',comCheque({...(proprios[i]||{id:nid(),criadoEm:Date.now()}),tipo:dev?'saida':'entrada',data:rec.data,valor:pg.valor,contaId:pg.contaId,
-      descricao:desc+` (${pgTxt(pg,dev)})`+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria:dev?'Devolução de adiantamento':'Adiantamento de cliente',parceiroId,ref:{col:'adiantamentos',id:aid}},proprios[i]));
-    for(const m of proprios.slice(pagamentos.length))await del('movimentos',m.id);
+    const proprios=linked(aid).mov;const {pares,sobra}=parear(pagamentos,proprios);
+    for(const [i,pg] of pagamentos.entries())await put('movimentos',comCheque({...(pares[i]||{id:nid(),criadoEm:Date.now()}),tipo:dev?'saida':'entrada',data:rec.data,valor:pg.valor,contaId:pg.contaId,
+      descricao:desc+` (${pgTxt(pg,dev)})`+(pagamentos.length>1?` ${i+1}/${pagamentos.length}`:''),meio:pg.meio,cheque:pg.cheque||null,categoria:dev?'Devolução de adiantamento':'Adiantamento de cliente',parceiroId,ref:{col:'adiantamentos',id:aid}},pares[i]));
+    for(const m of sobra)await del('movimentos',m.id);
     toast(`${rotOp('adiantamentos',rec)} salvo`);
   }});
 }
