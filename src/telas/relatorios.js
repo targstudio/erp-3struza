@@ -1,6 +1,6 @@
 import {S,byId,contaNome,parcNome} from '../dados.js';
 import {UI,monthCtl,perCtl,periodo} from '../estado.js';
-import {custoItem,custosMedios,margemVenda,porMaterial,statusT} from '../regras.js';
+import {custoItem,custosMedios,fatorDesc,margemVenda,porMaterial,statusT} from '../regras.js';
 import {baixarCSVLinhas,slug} from './caixa.js';
 import {brl,esc,fd,fkg,fnum,mLabel,num,r2,swatch} from '../util.js';
 
@@ -12,8 +12,8 @@ function relDados(){
   let receita=0,custo=0,semCusto=false;
   vendas.forEach(v=>{const m=margemVenda(v,cm);receita+=num(v.total);custo+=m.custo;semCusto=semCusto||m.semCusto;
     const c=cli.get(v.parceiroId)||{n:0,kg:0,total:0,margem:0};c.n++;c.kg+=num(v.totalKg);c.total+=num(v.total);c.margem+=m.margem;cli.set(v.parceiroId,c);
-    (v.itens||[]).forEach(it=>{const k=it.tipo+'|'+it.cor;const ck=custoItem(cm,it);const e=mat.get(k)||{tipo:it.tipo,cor:it.cor,kg:0,receita:0,custo:0};
-      e.kg+=num(it.kg);e.receita+=num(it.kg)*num(it.precoKg);e.custo+=num(it.kg)*ck;mat.set(k,e)})});
+    const fdv=fatorDesc(v);(v.itens||[]).forEach(it=>{const k=it.tipo+'|'+it.cor;const ck=custoItem(cm,it);const e=mat.get(k)||{tipo:it.tipo,cor:it.cor,kg:0,receita:0,custo:0};
+      e.kg+=num(it.kg);e.receita+=num(it.kg)*num(it.precoKg)*fdv;e.custo+=num(it.kg)*ck;mat.set(k,e)})});
   compras.forEach(c=>{const e=forn.get(c.parceiroId)||{n:0,kg:0,total:0};e.n++;e.kg+=num(c.totalKg);e.total+=num(c.total);forn.set(c.parceiroId,e)});
   // despesas e outras receitas pelo caixa (compra e venda de material ficam de fora: já entram pelo custo e pelas vendas)
   S.movimentos.filter(m=>!m.pendente&&dentro(m)).forEach(m=>{if(m.ref?.col==='adiantamentos')return; // adiantamento não é receita: vira venda quando for abatido

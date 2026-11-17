@@ -3,7 +3,7 @@ import {UI,periodo} from './estado.js';
 import {pgTxt} from './forms/pagamento.js';
 import {ORDEM,TIPOREC,recebidosPorConta} from './cheques.js';
 import {modal} from './modal.js';
-import {EMB,FORMA,FRETE,linked,codVenda,creditoCliente,rotOp,TIPOCONTA} from './regras.js';
+import {EMB,FORMA,FRETE,brutoItens,linked,codVenda,creditoCliente,rotOp,TIPOCONTA} from './regras.js';
 import {brl,esc,fd,fkg,fnum,num,today} from './util.js';
 
 /* ---------- Recibo / comprovante para imprimir ---------- */
@@ -14,10 +14,10 @@ const CSS_DOC=`body{font-family:Inter,system-ui,Arial,sans-serif;color:#1d2330;m
     @media print{.noprint{display:none}body{margin:12mm}}`;
 // tabela de itens: produto, cor, embalagem, quantidade, peso e (com preços) R$/kg e subtotal
 function tabItens(o,precos,extraFoot=''){
-  const n=precos?7:5;
+  const n=precos?7:5;const desc=num(o.desconto);
   return `<table><thead><tr><th>Produto</th><th>Cor</th><th>Embalagem</th><th class="r">Qtd.</th><th class="r">Peso</th>${precos?'<th class="r">R$/kg</th><th class="r">Subtotal</th>':''}</tr></thead><tbody>
     ${(o.itens||[]).map(i=>`<tr><td>${esc(i.tipo)}</td><td>${esc(i.cor)}</td><td>${EMB[i.embalagem]}${i.embalagem==='granel'?'':' de '+fnum(i.pesoUn,0)+' kg'}</td><td class="r">${i.embalagem==='granel'?'—':fnum(i.qtd,0)}</td><td class="r">${fkg(i.kg)}</td>${precos?`<td class="r">${brl(i.precoKg)}</td><td class="r">${brl(num(i.kg)*num(i.precoKg))}</td>`:''}</tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3"><b>Total</b></td><td class="r"><b>${(o.itens||[]).some(i=>i.embalagem!=='granel')?fnum((o.itens||[]).reduce((a,i)=>a+(i.embalagem==='granel'?0:num(i.qtd)),0),0):''}</b></td><td class="r"><b>${fkg(o.totalKg)}</b></td>${precos?`<td></td><td class="r tot">${brl(o.total)}</td>`:''}</tr>${extraFoot}</tfoot></table>`.replace(/colspan="6"/g,'colspan="'+(n-1)+'"');
+    <tfoot><tr><td colspan="3"><b>Total</b></td><td class="r"><b>${(o.itens||[]).some(i=>i.embalagem!=='granel')?fnum((o.itens||[]).reduce((a,i)=>a+(i.embalagem==='granel'?0:num(i.qtd)),0),0):''}</b></td><td class="r"><b>${fkg(o.totalKg)}</b></td>${precos?(desc?`<td></td><td class="r">${brl(brutoItens(o))}</td>`:`<td></td><td class="r tot">${brl(o.total)}</td>`):''}</tr>${precos&&desc?`<tr><td colspan="6">Desconto${num(o.descontoPct)?' ('+fnum(o.descontoPct,2).replace(/,00$/,'')+'%)':''}</td><td class="r">− ${brl(desc)}</td></tr><tr><td colspan="6"><b>Total com desconto</b></td><td class="r tot">${brl(o.total)}</td></tr>`:''}${extraFoot}</tfoot></table>`.replace(/colspan="6"/g,'colspan="'+(n-1)+'"');
 }
 const logoImg=()=>{const l=document.querySelector('.login-logo')?.src||'';return l?`<img src="${l}" style="height:34px">`:'<h1>3STRUZA</h1>'};
 const blocoCliente=(p,rot='Cliente')=>`<p><b>${rot}:</b> ${esc(p.nome||'—')}${p.documento?' · '+esc(p.documento):''}${p.cidade||p.endereco?'<br>'+esc([p.endereco,p.cidade,p.uf].filter(Boolean).join(' · ')):''}${p.telefone?'<br>'+esc(p.telefone):''}</p>`;

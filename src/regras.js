@@ -44,8 +44,12 @@ function custosMedios(){const m=new Map();const add=(it,kg,v)=>{const k=it.tipo+
   const tp=new Map();m.forEach((c,k)=>{const t=k.split('|')[0];const e=tp.get(t)||{kg:0,v:0};e.kg+=c.kg;e.v+=c.v;tp.set(t,e)});
   const out=new Map();m.forEach((c,k)=>out.set(k,c.kg?c.v/c.kg:0));tp.forEach((c,t)=>out.set(t,c.kg?c.v/c.kg:0));return out}
 const custoItem=(cm,it)=>cm.get(it.tipo+'|'+it.cor)||cm.get(it.tipo)||0;
+// desconto da venda/orçamento: valor em R$ abatido do total dos itens (o.desconto); o.total já vem com ele descontado
+const brutoItens=o=>r2((o.itens||[]).reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0));
+// fator que leva o preço de cada item ao preço com desconto (1 = sem desconto), rateado pelo valor dos itens
+const fatorDesc=o=>{const d=num(o.desconto),b=brutoItens(o);return d>0&&b>0?Math.max(0,(b-d)/b):1};
 // peso, valor e preço médio de cada tipo de material (grão, moído…) nas compras ou vendas dadas
-function porMaterial(ops){const m=new Map();ops.forEach(o=>(o.itens||[]).forEach(it=>{if(!it.tipo)return;const e=m.get(it.tipo)||{tipo:it.tipo,kg:0,total:0,ids:new Set()};e.kg+=num(it.kg);e.total+=num(it.kg)*num(it.precoKg);e.ids.add(o.id);m.set(it.tipo,e)}));
+function porMaterial(ops){const m=new Map();ops.forEach(o=>{const fx=fatorDesc(o);(o.itens||[]).forEach(it=>{if(!it.tipo)return;const e=m.get(it.tipo)||{tipo:it.tipo,kg:0,total:0,ids:new Set()};e.kg+=num(it.kg);e.total+=num(it.kg)*num(it.precoKg)*fx;e.ids.add(o.id);m.set(it.tipo,e)})});
   return [...m.values()].map(e=>({tipo:e.tipo,kg:e.kg,total:r2(e.total),qtd:e.ids.size,medio:e.kg?e.total/e.kg:0})).sort((a,b)=>b.total-a.total||a.tipo.localeCompare(b.tipo))}
 // tipos de material que o parceiro já comprou ou vendeu com a gente
 const tiposParceiro=(col,pid)=>[...new Set(S[col].filter(x=>x.parceiroId===pid).flatMap(x=>(x.itens||[]).map(i=>i.tipo).filter(Boolean)))];
@@ -137,4 +141,4 @@ function genTitulos(base,modo,n,valor,venc){
   return out;
 }
 
-export {saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,FORMA_AUTO,NOMEOP,creditoCliente,creditosClientes,statusOrc,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,custoItem,porMaterial,tiposParceiro,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};
+export {brutoItens,fatorDesc,saldoConta,saldoTotal,statusT,STATUS_PILL,pillT,EMB,FORMA,FORMA_AUTO,NOMEOP,creditoCliente,creditosClientes,statusOrc,MEIO,AVISTA,TIPOCONTA,stockKey,estoque,custosMedios,custoItem,porMaterial,tiposParceiro,margemVenda,ultImposto,FRETE,dispMat,faltaEstoque,proximoNumero,seqDia,proximoSeqDia,codVenda,rotOp,linked,removeLinked,renovando,renovar,genTitulos,caixaPrevisto,vendasPorMes};
