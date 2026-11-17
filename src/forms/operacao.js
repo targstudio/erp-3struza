@@ -12,7 +12,7 @@ import {$,addDays,addMonths,brl,esc,fd,fkg,fnum,nid,num,r2,today} from '../util.
 function formOp(col,id,pre={}){
   const isC=col==='compras',isO=col==='orcamentos';const c=cfg();
   const orc=!id&&pre.orcId?byId('orcamentos',pre.orcId):null;
-  const o=id?byId(col,id):orc?{data:today(),forma:'pix',parceiroId:orc.parceiroId,itens:orc.itens,frete:orc.frete,impostoPct:orc.impostoPct,margemAlvo:orc.margemAlvo,obs:orc.obs,parcelas:1,primeiroVenc:addDays(today(),30)}
+  const o=id?byId(col,id):orc?{data:today(),forma:'pix',parceiroId:orc.parceiroId,itens:orc.itens,frete:orc.frete,desconto:orc.desconto,descontoPct:orc.descontoPct,impostoPct:orc.impostoPct,margemAlvo:orc.margemAlvo,obs:orc.obs,parcelas:1,primeiroVenc:addDays(today(),30)}
     :{data:today(),forma:'pix',itens:[{tipo:c.tipos[0],cor:c.cores[0],embalagem:'bigbag',qtd:1,pesoUn:c.pesoBag,kg:c.pesoBag,precoKg:''}],parcelas:1,primeiroVenc:addDays(today(),30),...(isO?{validade:addDays(today(),7)}:{})};
   const nome=isC?'compra':isO?'orçamento':'venda';
   const parcs=S.parceiros.slice().sort((a,b)=>(isC?(b.fornecedor-a.fornecedor):(b.cliente-a.cliente))||a.nome.localeCompare(b.nome));
@@ -27,6 +27,10 @@ function formOp(col,id,pre={}){
     <div class="box" id="novoParc" hidden><b style="font-size:14px">Novo cadastro</b>${parcFields({},'np_')}<span class="hint">Você completa telefone, endereço e outros dados depois em Clientes e fornecedores.</span></div>
     <div><div class="hint" style="margin-bottom:6px;font-weight:600">Itens</div><div class="tbl-wrap"><table class="items"><thead><tr><th style="min-width:150px">Tipo de material</th><th style="min-width:110px">Cor</th><th style="min-width:110px">Embalagem</th><th style="min-width:70px">Qtd.</th><th style="min-width:86px">Peso emb. (kg)</th><th style="min-width:96px">Peso total (kg)</th><th style="min-width:92px">${isC?'Preço':'Valor'} R$/kg</th><th class="r" style="min-width:100px">Subtotal</th><th></th></tr></thead><tbody id="itRows"></tbody></table></div>
       <button type="button" class="btn sm" id="addIt" style="margin-top:6px">+ Adicionar item</button></div>
+    ${isC?'':`<div class="box"><div class="hint" style="font-weight:600">Desconto</div>
+      <div class="row"><label class="fl">Desconto na ${isO?'proposta':'venda'}<input name="desconto" id="oDesc" inputmode="decimal" value="${num(o.descontoPct)?fnum(o.descontoPct,2):num(o.desconto)?fnum(o.desconto):''}" placeholder="0"></label>
+        <label class="fl">Em<select name="descTipo" id="oDescTipo"><option value="rs" ${num(o.descontoPct)?'':'selected'}>R$ (valor)</option><option value="pct" ${num(o.descontoPct)?'selected':''}>% do total</option></select></label></div>
+      <span class="hint" id="descHint">Abatido do total dos itens. O cliente paga o total com desconto, e o lucro e o preço médio já consideram o desconto.</span></div>`}
     <div class="total-line" id="totLine"></div>
     ${isC?'':`<div class="box"><div class="hint" style="font-weight:600">Frete</div>
       <div class="opts">${Object.entries(FRETE).map(([k,l])=>`<label><input type="radio" name="freteTipo" value="${k}" ${(o.frete?.tipo||'nenhum')===k?'checked':''}>${l}</label>`).join('')}</div>
@@ -61,25 +65,31 @@ function formOp(col,id,pre={}){
       <td data-l="R$/kg"><input data-k="precoKg" inputmode="decimal" value="${it.precoKg===''?'':fnum(num(it.precoKg),4)}"></td>
       <td class="r" style="padding-top:12px;font-weight:600" data-l="Subtotal" data-sub>${brl(num(it.kg)*num(it.precoKg))}</td>
       <td><button type="button" class="btn sm danger" data-rm="${i}" ${itens.length<2?'disabled':''} aria-label="Remover item">×</button></td></tr>`}).join('');totals()};
-    const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0);const fc=freteCobrado();
-      $('#totLine').innerHTML=`<div><span>Peso total</span>${fkg(kgT)}</div><div><span>Média</span>${kgT?brl(t/kgT)+'/kg':'—'}</div>${fc?`<div><span>Material</span>${brl(t)}</div><div><span>Frete</span>${brl(fc)}</div>`:''}<div><span>Total</span>${brl(t+fc)}</div>`;
+    const totals=()=>{const kgT=itens.reduce((a,i)=>a+num(i.kg),0),t=bruto();const fc=freteCobrado(),d=descVal();
+      $('#totLine').innerHTML=`<div><span>Peso total</span>${fkg(kgT)}</div><div><span>Média</span>${kgT?brl((t-d)/kgT)+'/kg':'—'}</div>${fc||d?`<div><span>Itens</span>${brl(t)}</div>`:''}${d?`<div><span>Desconto</span>− ${brl(d)}</div>`:''}${fc?`<div><span>Frete</span>${brl(fc)}</div>`:''}<div><span>Total</span>${brl(t-d+fc)}</div>`;
+      if(!isC){const dh=$('#descHint');const pct=descPct();dh.classList.toggle('neg',d>t+0.005||pct>=100);
+        dh.textContent=d>t+0.005||pct>=100?'O desconto não pode ser maior que o total dos itens.':d?(f.elements.descTipo.value==='pct'?`${fnum(pct,2)}% = ${brl(d)} de desconto.`:`${brl(d)} = ${t?fnum(d/t*100,2):'0'}% do total dos itens.`)+' O cliente paga '+brl(Math.max(0,t-d))+'.':'Abatido do total dos itens. O cliente paga o total com desconto, e o lucro e o preço médio já consideram o desconto.'}
       if(!isC)lucro();
       tb.querySelectorAll('tr').forEach(tr=>{const it=itens[+tr.dataset.i];tr.querySelector('[data-sub]').textContent=brl(num(it.kg)*num(it.precoKg))});credPrev();if($('#pgInfo')){pgInfo();if(f.elements.forma)fp()}};
     // frete e lucro (só na venda)
     const freteTipo=()=>isC?'nenhum':(f.elements.freteTipo.value||'nenhum');
     // CIF não é cobrado do cliente: entra só como custo interno
     const freteCobrado=()=>0;
-    const totalVenda=()=>r2(itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0)+freteCobrado());
+    const bruto=()=>r2(itens.reduce((a,i)=>a+num(i.kg)*num(i.precoKg),0));
+    // desconto em R$ ou em % do total dos itens
+    const descPct=()=>isC||f.elements.descTipo.value!=='pct'?0:num(fv(f,'desconto'));
+    const descVal=()=>isC?0:f.elements.descTipo.value==='pct'?r2(bruto()*descPct()/100):r2(num(fv(f,'desconto')));
+    const totalVenda=()=>r2(bruto()-descVal()+freteCobrado());
     const lucro=()=>{const ft=freteTipo();$('#frBox').hidden=ft==='nenhum';$('#frContaL').hidden=ft!=='cif'||isO;
       $('#frHint').textContent=isO?(ft==='fob'?'FOB: o cliente paga o frete direto ao transportador. O valor aparece no orçamento.':ft==='cif'?'CIF: a 3STRUZA paga o frete. Não aparece para o cliente; entra só no cálculo do lucro.':''):ft==='cif'?'CIF: a 3STRUZA paga o frete. Não entra no total do cliente nem no romaneio; fica só interno, como custo da venda e, se escolher uma conta, saída do caixa na data da venda.':ft==='fob'?'FOB: o cliente paga o frete direto ao transportador. O valor aparece no romaneio e não entra no lucro.':'';
       const cm=custosMedios();const v={itens:itens.map(i=>({...i,kg:num(i.kg)})),total:totalVenda(),frete:{tipo:ft,valor:num(fv(f,'freteValor'))},impostoPct:num(fv(f,'impostoPct'))};
-      const m=margemVenda(v,cm);const T=v.total,kg=itens.reduce((a,i)=>a+num(i.kg),0);const mat=r2(T-freteCobrado());
+      const m=margemVenda(v,cm);const T=v.total,kg=itens.reduce((a,i)=>a+num(i.kg),0);const mat=bruto(),dsc=descVal();
       const alvoM=num(fv(f,'margemAlvo'));const tx=v.impostoPct/100;
       // preço por kg para chegar na margem desejada: T(1-t-a)=custo material+frete CIF
-      let sug='';if(alvoM&&kg){const d=1-tx-alvoM/100;if(d>0){const Tn=(m.custoMat+m.frete)/d;const p=(Tn-freteCobrado())/kg;sug=`<div class="hint" style="margin-top:6px">Para ter <b>${fnum(alvoM,1)}%</b> de margem, venda a <b>${brl(p)}/kg</b> em média${kg&&mat?` (hoje ${brl(mat/kg)}/kg)`:''}. ${itens.length===1?`<button type="button" class="btn sm" id="aplPreco" data-p="${r2(p*10000)/10000}">Usar este preço</button>`:''}</div>`}else sug='<div class="hint">Margem + impostos passam de 100%.</div>'}
+      let sug='';if(alvoM&&kg){const d=1-tx-alvoM/100;if(d>0){const Tn=(m.custoMat+m.frete)/d;const semDesc=f.elements.descTipo.value==='pct'?(descPct()<100?(Tn-freteCobrado())/(1-descPct()/100):0):Tn-freteCobrado()+dsc;const p=semDesc/kg;sug=`<div class="hint" style="margin-top:6px">Para ter <b>${fnum(alvoM,1)}%</b> de margem, venda a <b>${brl(p)}/kg</b> em média${dsc?' antes do desconto':''}${kg&&mat?` (hoje ${brl(mat/kg)}/kg)`:''}. ${itens.length===1?`<button type="button" class="btn sm" id="aplPreco" data-p="${r2(p*10000)/10000}">Usar este preço</button>`:''}</div>`}else sug='<div class="hint">Margem + impostos passam de 100%.</div>'}
       const ln=(l,v,cls='')=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0" class="${cls}"><span>${l}</span><b class="num">${v}</b></div>`;
       $('#lucroBox').innerHTML=`<div style="font-size:14px;border-top:1px solid var(--line);padding-top:8px">
-        ${ln('Material vendido',brl(mat))}${freteCobrado()?ln('+ Frete cobrado do cliente',brl(freteCobrado())):''}${ln('= Total da venda',brl(T))}
+        ${ln('Material vendido',brl(mat))}${dsc?ln('− Desconto',brl(dsc)):''}${freteCobrado()?ln('+ Frete cobrado do cliente',brl(freteCobrado())):''}${ln('= Total da venda',brl(T))}
         ${ln('− Custo do material (custo médio)'+(m.semCusto?' *':''),brl(m.custoMat))}${m.frete?ln('− Frete CIF',brl(m.frete)):''}${m.imposto?ln(`− Impostos (${fnum(v.impostoPct,2)}%)`,brl(m.imposto)):''}
         <div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:16px"><span><b>Lucro da venda</b></span><b class="num ${m.margem<0?'neg':'pos'}">${brl(m.margem)} <span style="font-size:13px">${T?'· '+fnum(m.margem/T*100,1)+'%':''}</span></b></div>
         ${m.semCusto?'<div class="hint">* Algum material ainda não tem custo (sem compra ou ajuste com custo/kg).</div>':''}${sug}</div>`;
@@ -99,7 +109,7 @@ function formOp(col,id,pre={}){
     const alvo=()=>{const v=f.elements.forma.value;return r2(v==='credito'?num(fv(f,'entrada')):totalVenda()-uso())};
     const adInfo=()=>{if(isC||isO)return;const d=credDisp();$('#adBox').hidden=!(d>0.005||uso()>0)||f.elements.forma.value==='permuta';
       const u=uso();$('#adHint').textContent=`Este cliente tem ${brl(d)} de crédito.${u?` Usando ${brl(u)}, ${u>d+0.005?'passa do crédito disponível.':'sobram '+brl(d-u)+'.'} ${f.elements.forma.value==='credito'?'O resto vai para entrada e parcelas.':'O cliente paga '+brl(Math.max(0,totalVenda()-u))+'.'}`:''}`};
-    if(!isC){f.querySelectorAll('[name=freteTipo]').forEach(r=>r.addEventListener('change',totals));['frValor','oImp','oMargem'].forEach(k=>{$('#'+k).addEventListener('input',totals);$('#'+k).addEventListener('change',totals)})}
+    if(!isC){f.querySelectorAll('[name=freteTipo]').forEach(r=>r.addEventListener('change',totals));['frValor','oImp','oMargem','oDesc','oDescTipo'].forEach(k=>{$('#'+k).addEventListener('input',totals);$('#'+k).addEventListener('change',totals)})}
     const PG=pgMount(pags,alvo,isC),pgInfo=PG.info;f.__pags=()=>pags;
     const fp=()=>{const v=f.elements.forma.value;$('#fpConta').hidden=isO||!((AVISTA.has(v)&&alvo()>0.005)||(v==='credito'&&num(fv(f,'entrada'))>0));adInfo();$('#fpCred').hidden=v!=='credito';$('#fpPerm').hidden=v!=='permuta'};
     f.querySelectorAll('[name=forma]').forEach(r=>r.addEventListener('change',()=>{fp();const v=f.elements.forma.value;if(MEIO[v]&&pags.length===1&&pags[0].meio!==v){pags[0].meio=v;const d=defaultConta(v);if(d&&!id)pags[0].contaId=d;PG.draw()}pgInfo()}));
@@ -122,13 +132,20 @@ function formOp(col,id,pre={}){
       frete=tp==='nenhum'?null:{tipo:tp,valor:fvv,cobrar:false,contaId:tp==='cif'&&!isO?fv(f,'freteConta'):'',transportadora:fv(f,'freteTransp'),placa:fv(f,'fretePlaca'),motorista:fv(f,'freteMotorista')};
       impostoPct=num(fv(f,'impostoPct'));if(impostoPct<0||impostoPct>=100)throw'Impostos precisam ficar entre 0 e 100%.';
       margemAlvo=fv(f,'margemAlvo')===''?'':num(fv(f,'margemAlvo'))}
-    const total=totalMat;
+    // desconto: guarda o valor em R$ (e o % quando foi digitado em %)
+    let desconto=0,descontoPct='';
+    if(!isC){const pct=f.elements.descTipo.value==='pct';const dv=num(fv(f,'desconto'));
+      if(dv<0)throw'O desconto não pode ser negativo.';
+      if(pct&&dv>=100)throw'O desconto precisa ser menor que 100%.';
+      desconto=pct?r2(totalMat*dv/100):r2(dv);descontoPct=pct&&dv?dv:'';
+      if(desconto>0&&desconto>=totalMat-0.005)throw`O desconto (${brl(desconto)}) precisa ser menor que o total dos itens (${brl(totalMat)}).`}
+    const total=r2(totalMat-desconto);
     let novoParc=null;
     if(parceiroId==='__novo'){const nome=fv(f,'np_nome');if(!nome)throw'Informe o nome do novo cadastro.';parceiroId=nid();
       novoParc={id:parceiroId,nome,pessoa:f.elements.np_pessoa.value,documento:fv(f,'np_documento'),fornecedor:isC,cliente:!isC}}
     if(isO){if(novoParc)await put('parceiros',novoParc);
       else{const p=byId('parceiros',parceiroId);if(p&&!p.cliente)await put('parceiros',{...p,cliente:true})}
-      const rec={...o,id:id||nid(),numero:id?o.numero:await proximoNumero(col),data:fv(f,'data')||today(),parceiroId,itens:its,total,totalKg,totalMat,frete,impostoPct,margemAlvo,
+      const rec={...o,id:id||nid(),numero:id?o.numero:await proximoNumero(col),data:fv(f,'data')||today(),parceiroId,itens:its,total,totalKg,totalMat,desconto,descontoPct,frete,impostoPct,margemAlvo,
         validade:fv(f,'validade'),condicao:fv(f,'condicao'),obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
       await put(col,rec);toast(`${rotOp(col,rec)} salvo`);return}
     // venda acima do estoque: avisa e pede um segundo clique para confirmar
@@ -169,7 +186,7 @@ function formOp(col,id,pre={}){
     const numero=id?o.numero:await proximoNumero(col);
     // venda: sequência do dia; muda só se a data mudar
     const seq=isC?undefined:(id&&o.data===data?seqDia(o):proximoSeqDia(data,opId));
-    const rec={...o,id:opId,numero,...(isC?{}:{seqDia:seq}),data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,frete,impostoPct,margemAlvo,usoAdiant,...(orc?{orcamentoId:orc.id}:{})}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
+    const rec={...o,id:opId,numero,...(isC?{}:{seqDia:seq}),data,parceiroId,itens:its,total,totalKg,forma:formaRec,contaId,pagamentos,entrada,parcelas,...(isC?{}:{totalMat,desconto,descontoPct,frete,impostoPct,margemAlvo,usoAdiant,...(orc?{orcamentoId:orc.id}:{})}),primeiroVenc,permutaDesc:forma==='permuta'?fv(f,'permutaDesc'):'',obs:fv(f,'obs'),criadoEm:o.criadoEm||Date.now()};
     await put(col,rec);
     const pn=parcNome(parceiroId)!=='—'?parcNome(parceiroId):(novoParc?.nome||'');
     const desc=`${rotOp(col,rec)} · ${pn}`;
